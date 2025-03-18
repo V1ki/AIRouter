@@ -17,8 +17,8 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 def convert_chunk_to_response(chunk, model, conversation_id):
     """Convert an OpenAI chunk to a standardized response format."""
     response = chunk.model_dump()
-    response['id'] = conversation_id
-    response['model'] = model
+    response["id"] = conversation_id
+    response["model"] = model
     return response
 
 
@@ -52,7 +52,12 @@ async def chat_completions(
 
     model_id = best_implementation.provider_model_id
 
-    args = {**body, "model": model_id}
+    args = {
+        **body,
+        "model": model_id,
+    }
+    if stream:
+        args["stream_options"] = {"include_usage": True}
     coversation_id = body.get("conversation_id", f"router-{uuid.uuid4()}")
     completion = await client.chat.completions.create(**args)
 
@@ -65,17 +70,25 @@ async def chat_completions(
 
             async for chunk in completion:
                 data = convert_chunk_to_response(chunk, model, coversation_id)
+                usage = data.get("usage")
+                if usage:
+                    ModelService.save_usage(db, db_api_key.id,best_implementation.id, usage)
+                
                 yield f"data: {json.dumps(data)}\n\n"
-
             yield "data: [DONE]\n\n"
+
         return StreamingResponse(
             content=stream_generator(), media_type="text/event-stream"
         )
 
     print(completion)
-    
-    
+
     response = completion.model_dump()
-    response['id'] = coversation_id
-    response['model'] = model
+    response["id"] = coversation_id
+    response["model"] = model
+
+    usage = response.get("usage")
+    if usage:
+        ModelService.save_usage(db, db_api_key.id,best_implementation.id, usage)
+
     return response

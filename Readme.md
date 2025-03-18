@@ -28,5 +28,5 @@
 
 - [x] `/v1/models`  模型列表实现. ✅ 2025-03-18
 - [x] `/v1/chat/completions` chat 接口实现. ✅ 2025-03-18
-- [ ] 统计对应的`api key` 使用了多少 token.
+- [x] 统计对应的`api key` 使用了多少 token. ✅ 2025-03-18
 - [ ] 增加命令行用于查看 每天使用的 token.
