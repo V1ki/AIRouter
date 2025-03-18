@@ -16,36 +16,9 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 
 def convert_chunk_to_response(chunk, model, conversation_id):
     """Convert an OpenAI chunk to a standardized response format."""
-    choices = []
-    for choice in chunk.choices:
-        delta = {}
-        for attr in ["content", "role", "tool_calls", "reasoning_content"]:
-            if hasattr(choice.delta, attr) and getattr(choice.delta, attr) is not None:
-                delta[attr] = getattr(choice.delta, attr)
-        
-        choice_data = {
-            "delta": delta,
-            "index": choice.index,
-            "finish_reason": choice.finish_reason,
-        }
-        
-        if hasattr(choice, "logprobs") and choice.logprobs is not None:
-            choice_data["logprobs"] = choice.logprobs
-            
-        choices.append(choice_data)
-    
-    response = {
-        "id": conversation_id,
-        "object": chunk.object,
-        "created": chunk.created,
-        "model": model,  # Use the original model name
-        "choices": choices,
-        "system_fingerprint": chunk.system_fingerprint if hasattr(chunk, "system_fingerprint") else None,
-    }
-    
-    if hasattr(chunk, "usage") and chunk.usage is not None:
-        response["usage"] = chunk.usage
-        
+    response = chunk.model_dump()
+    response['id'] = conversation_id
+    response['model'] = model
     return response
 
 
@@ -94,16 +67,15 @@ async def chat_completions(
                 data = convert_chunk_to_response(chunk, model, coversation_id)
                 yield f"data: {json.dumps(data)}\n\n"
 
+            yield "data: [DONE]\n\n"
         return StreamingResponse(
             content=stream_generator(), media_type="text/event-stream"
         )
 
     print(completion)
-    return {
-        "id": coversation_id,
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": model,
-        "usage": completion.usage,
-        "choices": completion.choices,
-    }
+    
+    
+    response = completion.model_dump()
+    response['id'] = coversation_id
+    response['model'] = model
+    return response
