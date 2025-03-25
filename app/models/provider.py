@@ -54,6 +54,7 @@ class ApiKey(Base):
     provider_id = Column(UUID(as_uuid=True), ForeignKey("model_providers.id"), nullable=False)
     alias = Column(String, nullable=False)
     key = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=True, default=0)  # Add sort order field
     
     # Relationship back to provider
     provider = relationship("ModelProvider", back_populates="api_keys")
@@ -113,6 +114,7 @@ class ModelImplementation(Base):
     pricing_info = Column(JSONB, nullable=True)
     is_available = Column(Boolean, default=True)
     custom_parameters = Column(JSONB, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)  # Add sort order field
     
     # Relationships
     provider = relationship("ModelProvider", back_populates="model_implementations")
