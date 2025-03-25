@@ -64,10 +64,6 @@ async def chat_completions(
     if stream:
 
         async def stream_generator():
-            yield "event: start\n"
-            yield 'data: {"model": "' + model + '"}\n\n'
-            yield "event: model-response\n"
-
             async for chunk in completion:
                 data = convert_chunk_to_response(chunk, model, coversation_id)
                 usage = data.get("usage")
