@@ -25,7 +25,7 @@ def parse_args():
                        help='Show only today\'s statistics')
     return parser.parse_args()
 
-def get_date_filter(db: Session, args):
+def get_date_filter(args):
     if args.today:
         today = datetime.now().date()
         return (func.date(ApiKeyUsage.timestamp) == today)
@@ -89,8 +89,8 @@ def get_usage_stats(db: Session, args):
         )
     
     # 4. 添加日期过滤条件
-    date_filter = get_date_filter(db, args)
-    if date_filter:
+    date_filter = get_date_filter(args)
+    if date_filter is not None:
         if isinstance(date_filter, tuple):
             for f in date_filter:
                 query = query.filter(f)
@@ -120,7 +120,13 @@ def get_usage_stats(db: Session, args):
         query = query.order_by(func.date_trunc('hour', ApiKeyUsage.timestamp))
     else:
         query = query.order_by(func.date(ApiKeyUsage.timestamp))
-    
+
+    from sqlalchemy.dialects import postgresql
+    sql_query = query.statement.compile(
+        dialect=postgresql.dialect(),
+        compile_kwargs={"literal_binds": True}
+    )
+    print(f"\nGenerated SQL query:\n{sql_query}")
     return query.all()
 
 def display_stats(stats, args):
