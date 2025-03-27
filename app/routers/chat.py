@@ -1,5 +1,6 @@
 import json
 import uuid
+import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -10,6 +11,14 @@ from openai.types.model import Model
 import time
 from app.db.database import get_db
 from app.services import ModelService
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -29,7 +38,7 @@ async def chat_completions(
     db: Session = Depends(get_db),
 ):
     """Get completions for a prompt from a model."""
-    print(body)
+    logger.info(f"Received chat completion request: {body}")
     # get the model
     model = body.get("model")
     stream = body.get("stream", False)
@@ -38,13 +47,14 @@ async def chat_completions(
     # get the Model implementations
     implementations = db_model.implementations
 
-    # TODO: find the best implementation
-    best_implementation = implementations[0]
+    # 使用新的方法获取最佳实现和API密钥
+    best_implementation, db_api_key = ModelService.get_best_implementation(db, implementations)
+    
+    if not best_implementation or not db_api_key:
+        # 如果找不到合适的实现或API密钥，返回错误
+        return {"error": "No suitable model implementation or API key available"}
 
     provider = best_implementation.provider
-
-    # TODO: find the best API key
-    db_api_key = provider.api_keys[0]
     api_key = db_api_key.key
     base_url = provider.base_url
 
@@ -56,6 +66,7 @@ async def chat_completions(
         **body,
         "model": model_id,
     }
+    logger.info(f"Selected model: {model_id} provider: {provider.name} base_url: {base_url}")
     if stream:
         args["stream_options"] = {"include_usage": True}
     coversation_id = body.get("conversation_id", f"router-{uuid.uuid4()}")
@@ -68,7 +79,7 @@ async def chat_completions(
                 data = convert_chunk_to_response(chunk, model, coversation_id)
                 usage = data.get("usage")
                 if usage:
-                    ModelService.save_usage(db, db_api_key.id,best_implementation.id, usage)
+                    ModelService.save_usage(db, db_api_key.id, best_implementation.id, usage)
                 
                 yield f"data: {json.dumps(data)}\n\n"
             yield "data: [DONE]\n\n"
@@ -77,7 +88,7 @@ async def chat_completions(
             content=stream_generator(), media_type="text/event-stream"
         )
 
-    print(completion)
+    logger.debug(f"Completion response: {completion}")
 
     response = completion.model_dump()
     response["id"] = coversation_id
@@ -85,6 +96,6 @@ async def chat_completions(
 
     usage = response.get("usage")
     if usage:
-        ModelService.save_usage(db, db_api_key.id,best_implementation.id, usage)
+        ModelService.save_usage(db, db_api_key.id, best_implementation.id, usage)
 
     return response

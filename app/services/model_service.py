@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
-from app.models.provider import Model as DBModel, ApiKeyUsage as DBApiKeyUsage
+from app.models.provider import Model as DBModel, ApiKeyUsage as DBApiKeyUsage, ModelImplementation, ApiKey, FreeQuota, FreeQuotaUsage
 
 class ModelService:
     
@@ -34,3 +34,93 @@ class ModelService:
         )
         db.add(db_usage)
         db.commit()
+    
+    @staticmethod
+    def get_best_implementation(db: Session, model_implementations: List[ModelImplementation]) -> tuple[ModelImplementation, ApiKey]:
+        """
+        获取最佳模型实现及其对应的API密钥
+        
+        优先级条件:
+        1. 按照sort_order排序（值越小优先级越高）
+        2. 如果有免费额度可用，优先使用有免费额度的实现
+        3. 如果免费额度都用完，则选择价格最便宜的实现
+        
+        返回:
+            tuple: (best_implementation, best_api_key)
+        """
+        if not model_implementations:
+            return None, None
+            
+        # 按照sort_order排序（升序）
+        sorted_implementations = sorted(model_implementations, key=lambda impl: impl.sort_order)
+        
+        best_implementation = None
+        best_api_key = None
+        lowest_price = float('inf')
+        
+        # 首先检查有没有免费额度可用的实现
+        for implementation in sorted_implementations:
+            provider = implementation.provider
+            
+            # 获取该provider的API keys，按sort_order排序
+            api_keys = db.query(ApiKey).filter(ApiKey.provider_id == provider.id)\
+                        .order_by(ApiKey.sort_order).all()
+            
+            if not api_keys:
+                continue
+                
+            # 查找该实现相关的免费额度
+            free_quota = db.query(FreeQuota).filter(
+                (FreeQuota.provider_id == provider.id) & 
+                ((FreeQuota.model_implementation_id == implementation.id) | 
+                 (FreeQuota.model_implementation_id == None))
+            ).first()
+            
+            # 如果有免费额度配置
+            if free_quota:
+                for api_key in api_keys:
+                    # 检查该API key的免费额度使用情况
+                    quota_usage = db.query(FreeQuotaUsage).filter(
+                        FreeQuotaUsage.api_key_id == api_key.id,
+                        FreeQuotaUsage.free_quota_id == free_quota.id
+                    ).first()
+                    
+                    # 如果没有使用记录或者还有剩余额度
+                    if not quota_usage or quota_usage.used_amount < free_quota.amount:
+                        return implementation, api_key
+        
+        # 如果没有免费额度可用，选择价格最便宜的实现
+        for implementation in sorted_implementations:
+            # 从pricing_info中获取价格信息
+            pricing_info = implementation.pricing_info or {}
+            
+            # 获取输入和输出的价格（假设pricing_info中有这些字段）
+            # 如果没有价格信息，则使用一个很大的值表示无限大
+            input_price = float(pricing_info.get('input_price', 'inf'))
+            output_price = float(pricing_info.get('output_price', 'inf'))
+            
+            # 计算一个简单的价格衡量值（可以根据实际需求调整）
+            # 这里我们简单地将输入和输出价格加权平均
+            price_measure = (input_price + output_price * 2) / 3  # 输出通常更贵，给予更高权重
+            
+            provider = implementation.provider
+            api_keys = db.query(ApiKey).filter(ApiKey.provider_id == provider.id)\
+                        .order_by(ApiKey.sort_order).all()
+            
+            if api_keys and price_measure < lowest_price:
+                lowest_price = price_measure
+                best_implementation = implementation
+                best_api_key = api_keys[0]  # 选择按sort_order排序的第一个key
+        
+        # 如果没有合适的实现，返回按sort_order排序的第一个实现和它的第一个API key
+        if not best_implementation and sorted_implementations:
+            first_impl = sorted_implementations[0]
+            provider = first_impl.provider
+            api_keys = db.query(ApiKey).filter(ApiKey.provider_id == provider.id)\
+                       .order_by(ApiKey.sort_order).all()
+            
+            if api_keys:
+                return first_impl, api_keys[0]
+        
+        return best_implementation, best_api_key
+        
