@@ -4,11 +4,9 @@ import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import Any, Dict, List
+from typing import Any, Dict
 from openai import AsyncOpenAI
-from openai.types.model import Model
 
-import time
 from app.db.database import get_db
 from app.services import ModelService
 
@@ -38,11 +36,13 @@ async def chat_completions(
     db: Session = Depends(get_db),
 ):
     """Get completions for a prompt from a model."""
-    logger.info(f"Received chat completion request: {body}")
+    logger.info(f"Received chat completion request:\n {json.dumps(body, indent=2, ensure_ascii=False)}")
     # get the model
     model = body.get("model")
     stream = body.get("stream", False)
     db_model = ModelService.get_model_by_name(db, name=model)
+    if not db_model:
+        return {"error": "Model not found"}, 404
 
     # get the Model implementations
     implementations = db_model.implementations
@@ -97,5 +97,5 @@ async def chat_completions(
     usage = response.get("usage")
     if usage:
         ModelService.save_usage(db, db_api_key.id, best_implementation.id, usage)
-
+    logger.info(f"Final response for chat completion: {json.dumps(response, indent=2, ensure_ascii=False)}")
     return response
