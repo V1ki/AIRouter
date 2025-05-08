@@ -1,0 +1,7 @@
+sqlalchemy>=sqlalchemy-2.0.40
+psycopg2-binary>=2.9.10  # PostgreSQL adapter
+python-dotenv>=1.0.0
+uuid>=1.30
+fastapi>=0.115.12
+uvicorn
+openai

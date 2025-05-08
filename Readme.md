@@ -21,7 +21,74 @@
 
 # 使用方法
 
+## Docker 部署
+
+1. **准备 .env 文件**
+
+在项目根目录下创建 `.env` 文件，内容示例：
+
+```
+DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5432/model_providers
+```
+
+- `host.docker.internal` 让容器内应用连接到宿主机数据库。
+- 如数据库运行在其他容器，`host.docker.internal` 替换为对应服务名（如 `db`）。
+
+2. **构建镜像**
+
+```bash
+docker build -t ai-router .
+```
+
+3. **运行容器**
+
+```bash
+docker run --env-file .env -p 8000:8000 ai-router
+```
+
+4. **访问服务**
+
 使用`OpenAI` 的库 , 或者任何兼容`OpenAI` 方式的库如`langchain` 等.
+
+<details>
+<summary>Langchain 示例</summary>
+
+```python
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(
+    model="model_name",
+    api_key="your_api_key",
+    base_url="http://localhost:8000/v1",
+)
+```
+</details>
+
+<details>
+<summary>OpenAI 示例</summary>
+
+```python
+import openai
+
+openai.api_key = "your_api_key"
+openai.base_url = "http://localhost:8000/v1"
+
+response = openai.chat.completions.create(
+    model="model_name",
+    messages=[{"role": "user", "content": "Hello, world!"}],
+)
+```
+</details>
+
+<details>
+<summary>cURL 示例</summary>
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "model_name", "messages": [{"role": "user", "content": "Hello, world!"}]}'
+```
+</details>
 
 # Roadmap
 
