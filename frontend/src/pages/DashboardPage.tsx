@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Box,
-  CircularProgress,
 } from '@mui/material'
 import {
   CloudQueue as ProvidersIcon,

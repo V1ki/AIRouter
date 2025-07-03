@@ -1,0 +1,31 @@
+# Simple Dockerfile for local development
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install only essential dependencies
+RUN pip install --no-cache-dir psycopg2-binary
+
+# Install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create simple entrypoint
+RUN echo '#!/bin/bash\n\
+echo "Waiting for database..."\n\
+sleep 5\n\
+echo "Initializing database..."\n\
+python scripts/init_db.py\n\
+if [ "$INIT_COMMON_PROVIDERS" = "true" ]; then\n\
+    echo "Initializing common providers..."\n\
+    python scripts/init_common_providers.py\n\
+fi\n\
+echo "Starting application..."\n\
+uvicorn app.main:app --host 0.0.0.0 --port 8000' > /app/start.sh && chmod +x /app/start.sh
+
+EXPOSE 8000
+
+CMD ["/app/start.sh"]

@@ -41,7 +41,7 @@ interface ProviderFormData {
 }
 
 interface ApiKeyFormData {
-  name: string
+  alias: string
   key: string
   provider_id: string
   sort_order: number
@@ -53,14 +53,13 @@ export default function ProvidersPage() {
   const [apiKeyOpen, setApiKeyOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [providerFormData, setProviderFormData] = useState<ProviderFormData>({
     name: '',
     base_url: '',
     description: '',
   })
   const [apiKeyFormData, setApiKeyFormData] = useState<ApiKeyFormData>({
-    name: '',
+    alias: '',
     key: '',
     provider_id: '',
     sort_order: 0,
@@ -183,11 +182,10 @@ export default function ProvidersPage() {
   }
 
   const handleApiKeyOpen = (providerId: string, apiKey?: ApiKey) => {
-    setSelectedProviderId(providerId)
     if (apiKey) {
       setEditingApiKey(apiKey)
       setApiKeyFormData({
-        name: apiKey.name,
+        alias: apiKey.alias,
         key: apiKey.key,
         provider_id: apiKey.provider_id,
         sort_order: apiKey.sort_order || 0,
@@ -195,7 +193,7 @@ export default function ProvidersPage() {
     } else {
       setEditingApiKey(null)
       setApiKeyFormData({
-        name: '',
+        alias: '',
         key: '',
         provider_id: providerId,
         sort_order: 0,
@@ -345,7 +343,7 @@ export default function ProvidersPage() {
                         <TableBody>
                           {providerApiKeys.map((apiKey) => (
                             <TableRow key={apiKey.id}>
-                              <TableCell>{apiKey.name}</TableCell>
+                              <TableCell>{apiKey.alias}</TableCell>
                               <TableCell>
                                 <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
                                   {apiKey.key.substring(0, 20)}...
@@ -453,10 +451,10 @@ export default function ProvidersPage() {
           <TextField
             autoFocus
             margin="dense"
-            label="Name"
+            label="Alias"
             fullWidth
-            value={apiKeyFormData.name}
-            onChange={(e) => setApiKeyFormData({ ...apiKeyFormData, name: e.target.value })}
+            value={apiKeyFormData.alias}
+            onChange={(e) => setApiKeyFormData({ ...apiKeyFormData, alias: e.target.value })}
             sx={{ mb: 2 }}
           />
           <TextField

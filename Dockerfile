@@ -18,10 +18,19 @@ RUN npm run build
 # Stage 2: Python backend with frontend
 FROM python:3.11-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    curl \
+# Set environment to avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies with retry and ignore signature issues temporarily
+RUN set -ex \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get update -o Acquire::Check-Valid-Until=false \
+    && apt-get install -y --no-install-recommends \
+        postgresql-client \
+        curl \
+        ca-certificates \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

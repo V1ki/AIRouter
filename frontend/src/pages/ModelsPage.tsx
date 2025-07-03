@@ -33,7 +33,7 @@ import {
   Settings as SettingsIcon,
 } from '@mui/icons-material'
 import { modelService, modelImplementationService, providerService } from '../services/api'
-import type { Model, ModelImplementation, Provider } from '../types'
+import type { Model, ModelImplementation } from '../types'
 
 interface ModelFormData {
   name: string
@@ -62,7 +62,6 @@ export default function ModelsPage() {
   const [implOpen, setImplOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [editingImpl, setEditingImpl] = useState<ModelImplementation | null>(null)
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [modelFormData, setModelFormData] = useState<ModelFormData>({
     name: '',
     description: '',
@@ -204,7 +203,6 @@ export default function ModelsPage() {
   }
 
   const handleImplOpen = (modelId: string, impl?: ModelImplementation) => {
-    setSelectedModelId(modelId)
     if (impl) {
       setEditingImpl(impl)
       setImplFormData({

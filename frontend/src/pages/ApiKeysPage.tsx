@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
@@ -29,7 +29,7 @@ import {
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material'
 import { apiKeyService, providerService } from '../services/api'
-import type { ApiKey, Provider } from '../types'
+import type { ApiKey } from '../types'
 
 interface ApiKeyFormData {
   provider_id: string

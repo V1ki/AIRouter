@@ -5,7 +5,6 @@ import type {
   Model,
   ModelImplementation,
   Usage,
-  FreeQuota,
   UsageStats,
 } from '../types'
 
