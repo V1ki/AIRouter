@@ -17,7 +17,7 @@ class ResponseService:
         db.commit()
 
     @staticmethod
-    def get_esponse(db: Session, response_id: str, include: list[str] = []):
+    def get_response(db: Session, response_id: str, include: list[str] = []):
         return db.query(DBResponse).filter(DBResponse.id == response_id).first()
 
     @staticmethod
