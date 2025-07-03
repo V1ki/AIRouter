@@ -178,6 +178,6 @@ run = client.beta.threads.runs.create(
 - [x] 增加免费token 额度/赠送金额的设置 ✅ 2025-03-25
 - [x] 设置 API Key 以及 模型实现的排序 ✅ 2025-03-25
 - [x] 支持 OpenAI Agents SDK (Assistants, Threads, Messages, Runs) ✅ 2025-07-03
-- [ ] 增加前端界面用于查看和管理 Provider 和 API Key
-- [ ] 增加前端界面用于查看和管理模型以及模型实现
-- [ ] 增加前端界面用于统计 Token的使用情况.
+- [x] 增加前端界面用于查看和管理 Provider 和 API Key ✅ 2025-07-03
+- [x] 增加前端界面用于查看和管理模型以及模型实现 ✅ 2025-07-03
+- [x] 增加前端界面用于统计 Token的使用情况 ✅ 2025-07-03

@@ -53,8 +53,7 @@ npm start
 访问 http://localhost:3000 使用管理界面：
 
 - **Dashboard**: 查看系统概览
-- **Providers**: 管理 AI 服务提供商（阿里云、字节跳动等）
-- **API Keys**: 管理各提供商的 API 密钥
+- **Providers & Keys**: 管理 AI 服务提供商和 API 密钥（统一管理界面）
 - **Models**: 管理模型和实现
 - **Usage**: 查看 Token 使用统计
 

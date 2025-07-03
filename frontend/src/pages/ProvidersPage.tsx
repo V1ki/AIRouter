@@ -9,24 +9,29 @@ import {
   DialogTitle,
   IconButton,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
   MenuItem,
   Alert,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  Chip,
 } from '@mui/material'
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  Key as KeyIcon,
 } from '@mui/icons-material'
-import { providerService } from '../services/api'
-import type { Provider } from '../types'
+import { providerService, apiKeyService } from '../services/api'
+import type { Provider, ApiKey } from '../types'
 
 interface ProviderFormData {
   name: string
@@ -35,56 +40,108 @@ interface ProviderFormData {
   free_quota_type?: 'CREDIT' | 'SHARED_TOKENS' | 'PER_MODEL_TOKENS'
 }
 
+interface ApiKeyFormData {
+  name: string
+  key: string
+  provider_id: string
+  sort_order: number
+}
+
 export default function ProvidersPage() {
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
+  const [providerOpen, setProviderOpen] = useState(false)
+  const [apiKeyOpen, setApiKeyOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
-  const [formData, setFormData] = useState<ProviderFormData>({
+  const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [providerFormData, setProviderFormData] = useState<ProviderFormData>({
     name: '',
     base_url: '',
     description: '',
   })
+  const [apiKeyFormData, setApiKeyFormData] = useState<ApiKeyFormData>({
+    name: '',
+    key: '',
+    provider_id: '',
+    sort_order: 0,
+  })
   const [error, setError] = useState<string | null>(null)
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ['providers'],
     queryFn: providerService.getAll,
   })
 
-  const createMutation = useMutation({
+  const { data: apiKeys = [] } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: apiKeyService.getAll,
+  })
+
+  const createProviderMutation = useMutation({
     mutationFn: providerService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['providers'] })
-      handleClose()
+      handleProviderClose()
     },
     onError: (error: any) => {
       setError(error.response?.data?.detail || 'Failed to create provider')
     },
   })
 
-  const updateMutation = useMutation({
+  const updateProviderMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Provider> }) =>
       providerService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['providers'] })
-      handleClose()
+      handleProviderClose()
     },
     onError: (error: any) => {
       setError(error.response?.data?.detail || 'Failed to update provider')
     },
   })
 
-  const deleteMutation = useMutation({
+  const deleteProviderMutation = useMutation({
     mutationFn: providerService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['providers'] })
     },
   })
 
-  const handleOpen = (provider?: Provider) => {
+  const createApiKeyMutation = useMutation({
+    mutationFn: apiKeyService.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      handleApiKeyClose()
+    },
+    onError: (error: any) => {
+      setError(error.response?.data?.detail || 'Failed to create API key')
+    },
+  })
+
+  const updateApiKeyMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ApiKey> }) =>
+      apiKeyService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      handleApiKeyClose()
+    },
+    onError: (error: any) => {
+      setError(error.response?.data?.detail || 'Failed to update API key')
+    },
+  })
+
+  const deleteApiKeyMutation = useMutation({
+    mutationFn: apiKeyService.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+    },
+  })
+
+  const handleProviderOpen = (provider?: Provider) => {
     if (provider) {
       setEditingProvider(provider)
-      setFormData({
+      setProviderFormData({
         name: provider.name,
         base_url: provider.base_url,
         description: provider.description || '',
@@ -92,98 +149,238 @@ export default function ProvidersPage() {
       })
     } else {
       setEditingProvider(null)
-      setFormData({
+      setProviderFormData({
         name: '',
         base_url: '',
         description: '',
       })
     }
     setError(null)
-    setOpen(true)
+    setProviderOpen(true)
   }
 
-  const handleClose = () => {
-    setOpen(false)
+  const handleProviderClose = () => {
+    setProviderOpen(false)
     setEditingProvider(null)
     setError(null)
   }
 
-  const handleSubmit = () => {
+  const handleProviderSubmit = () => {
     if (editingProvider) {
-      updateMutation.mutate({
+      updateProviderMutation.mutate({
         id: editingProvider.id,
-        data: formData,
+        data: providerFormData,
       })
     } else {
-      createMutation.mutate(formData)
+      createProviderMutation.mutate(providerFormData)
     }
   }
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this provider?')) {
-      deleteMutation.mutate(id)
+  const handleProviderDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this provider? All associated API keys will also be deleted.')) {
+      deleteProviderMutation.mutate(id)
     }
+  }
+
+  const handleApiKeyOpen = (providerId: string, apiKey?: ApiKey) => {
+    setSelectedProviderId(providerId)
+    if (apiKey) {
+      setEditingApiKey(apiKey)
+      setApiKeyFormData({
+        name: apiKey.name,
+        key: apiKey.key,
+        provider_id: apiKey.provider_id,
+        sort_order: apiKey.sort_order || 0,
+      })
+    } else {
+      setEditingApiKey(null)
+      setApiKeyFormData({
+        name: '',
+        key: '',
+        provider_id: providerId,
+        sort_order: 0,
+      })
+    }
+    setError(null)
+    setApiKeyOpen(true)
+  }
+
+  const handleApiKeyClose = () => {
+    setApiKeyOpen(false)
+    setEditingApiKey(null)
+    setError(null)
+  }
+
+  const handleApiKeySubmit = () => {
+    if (editingApiKey) {
+      updateApiKeyMutation.mutate({
+        id: editingApiKey.id,
+        data: apiKeyFormData,
+      })
+    } else {
+      createApiKeyMutation.mutate(apiKeyFormData)
+    }
+  }
+
+  const handleApiKeyDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this API key?')) {
+      deleteApiKeyMutation.mutate(id)
+    }
+  }
+
+  const getProviderApiKeys = (providerId: string) => {
+    return apiKeys.filter(key => key.provider_id === providerId)
+  }
+
+  const handleAccordionChange = (providerId: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedProvider(isExpanded ? providerId : null)
   }
 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Providers</Typography>
+        <Typography variant="h4">Providers & API Keys</Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => handleOpen()}
+          onClick={() => handleProviderOpen()}
         >
           Add Provider
         </Button>
       </Box>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Base URL</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Free Quota Type</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {providers.map((provider) => (
-              <TableRow key={provider.id}>
-                <TableCell>{provider.name}</TableCell>
-                <TableCell>{provider.base_url}</TableCell>
-                <TableCell>{provider.description || '-'}</TableCell>
-                <TableCell>{provider.free_quota_type || '-'}</TableCell>
-                <TableCell align="right">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpen(provider)}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDelete(provider.id)}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-            {providers.length === 0 && !isLoading && (
-              <TableRow>
-                <TableCell colSpan={5} align="center">
-                  No providers found
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {providers.length === 0 && !isLoading ? (
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <Typography color="textSecondary">No providers found. Add a provider to get started.</Typography>
+        </Paper>
+      ) : (
+        <Box>
+          {providers.map((provider) => {
+            const providerApiKeys = getProviderApiKeys(provider.id)
+            return (
+              <Accordion
+                key={provider.id}
+                expanded={expandedProvider === provider.id}
+                onChange={handleAccordionChange(provider.id)}
+                sx={{ mb: 1 }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box display="flex" alignItems="center" width="100%" pr={2}>
+                    <Box flex={1}>
+                      <Typography variant="h6">{provider.name}</Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        {provider.base_url}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Chip
+                        icon={<KeyIcon />}
+                        label={`${providerApiKeys.length} API Key${providerApiKeys.length !== 1 ? 's' : ''}`}
+                        size="small"
+                        color={providerApiKeys.length > 0 ? 'primary' : 'default'}
+                      />
+                      {provider.free_quota_type && (
+                        <Chip
+                          label={provider.free_quota_type.replace('_', ' ')}
+                          size="small"
+                          color="secondary"
+                        />
+                      )}
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleProviderOpen(provider)
+                        }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleProviderDelete(provider.id)
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  {provider.description && (
+                    <Typography variant="body2" color="textSecondary" paragraph>
+                      {provider.description}
+                    </Typography>
+                  )}
+                  
+                  <Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="subtitle1" fontWeight="bold">API Keys</Typography>
+                      <Button
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => handleApiKeyOpen(provider.id)}
+                      >
+                        Add API Key
+                      </Button>
+                    </Box>
+                    
+                    {providerApiKeys.length === 0 ? (
+                      <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                        <Typography variant="body2" color="textSecondary">
+                          No API keys configured for this provider
+                        </Typography>
+                      </Paper>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Name</TableCell>
+                            <TableCell>Key</TableCell>
+                            <TableCell>Sort Order</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {providerApiKeys.map((apiKey) => (
+                            <TableRow key={apiKey.id}>
+                              <TableCell>{apiKey.name}</TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                  {apiKey.key.substring(0, 20)}...
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{apiKey.sort_order || 0}</TableCell>
+                              <TableCell align="right">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleApiKeyOpen(provider.id, apiKey)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleApiKeyDelete(apiKey.id)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            )
+          })}
+        </Box>
+      )}
 
-      <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      {/* Provider Dialog */}
+      <Dialog open={providerOpen} onClose={handleProviderClose} maxWidth="sm" fullWidth>
         <DialogTitle>
           {editingProvider ? 'Edit Provider' : 'Add Provider'}
         </DialogTitle>
@@ -198,16 +395,16 @@ export default function ProvidersPage() {
             margin="dense"
             label="Name"
             fullWidth
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            value={providerFormData.name}
+            onChange={(e) => setProviderFormData({ ...providerFormData, name: e.target.value })}
             sx={{ mb: 2 }}
           />
           <TextField
             margin="dense"
             label="Base URL"
             fullWidth
-            value={formData.base_url}
-            onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+            value={providerFormData.base_url}
+            onChange={(e) => setProviderFormData({ ...providerFormData, base_url: e.target.value })}
             sx={{ mb: 2 }}
           />
           <TextField
@@ -216,8 +413,8 @@ export default function ProvidersPage() {
             fullWidth
             multiline
             rows={2}
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            value={providerFormData.description}
+            onChange={(e) => setProviderFormData({ ...providerFormData, description: e.target.value })}
             sx={{ mb: 2 }}
           />
           <TextField
@@ -225,8 +422,8 @@ export default function ProvidersPage() {
             margin="dense"
             label="Free Quota Type"
             fullWidth
-            value={formData.free_quota_type || ''}
-            onChange={(e) => setFormData({ ...formData, free_quota_type: e.target.value as any })}
+            value={providerFormData.free_quota_type || ''}
+            onChange={(e) => setProviderFormData({ ...providerFormData, free_quota_type: e.target.value as any })}
           >
             <MenuItem value="">None</MenuItem>
             <MenuItem value="CREDIT">Credit</MenuItem>
@@ -235,9 +432,56 @@ export default function ProvidersPage() {
           </TextField>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSubmit} variant="contained">
+          <Button onClick={handleProviderClose}>Cancel</Button>
+          <Button onClick={handleProviderSubmit} variant="contained">
             {editingProvider ? 'Update' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* API Key Dialog */}
+      <Dialog open={apiKeyOpen} onClose={handleApiKeyClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingApiKey ? 'Edit API Key' : 'Add API Key'}
+        </DialogTitle>
+        <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Name"
+            fullWidth
+            value={apiKeyFormData.name}
+            onChange={(e) => setApiKeyFormData({ ...apiKeyFormData, name: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="API Key"
+            fullWidth
+            type="password"
+            value={apiKeyFormData.key}
+            onChange={(e) => setApiKeyFormData({ ...apiKeyFormData, key: e.target.value })}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="Sort Order"
+            fullWidth
+            type="number"
+            value={apiKeyFormData.sort_order}
+            onChange={(e) => setApiKeyFormData({ ...apiKeyFormData, sort_order: parseInt(e.target.value) || 0 })}
+            helperText="Lower values have higher priority"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleApiKeyClose}>Cancel</Button>
+          <Button onClick={handleApiKeySubmit} variant="contained">
+            {editingApiKey ? 'Update' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

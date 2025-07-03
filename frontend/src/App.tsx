@@ -17,13 +17,11 @@ import {
 import {
   Menu as MenuIcon,
   CloudQueue as ProvidersIcon,
-  VpnKey as ApiKeysIcon,
   ModelTraining as ModelsIcon,
   Analytics as UsageIcon,
   Dashboard as DashboardIcon,
 } from '@mui/icons-material'
 import ProvidersPage from './pages/ProvidersPage'
-import ApiKeysPage from './pages/ApiKeysPage'
 import ModelsPage from './pages/ModelsPage'
 import UsagePage from './pages/UsagePage'
 import DashboardPage from './pages/DashboardPage'
@@ -38,8 +36,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Providers', icon: <ProvidersIcon />, path: '/providers' },
-  { text: 'API Keys', icon: <ApiKeysIcon />, path: '/api-keys' },
+  { text: 'Providers & Keys', icon: <ProvidersIcon />, path: '/providers' },
   { text: 'Models', icon: <ModelsIcon />, path: '/models' },
   { text: 'Usage', icon: <UsageIcon />, path: '/usage' },
 ]
@@ -142,7 +139,6 @@ export default function App() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/providers" element={<ProvidersPage />} />
-            <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/models" element={<ModelsPage />} />
             <Route path="/usage" element={<UsagePage />} />
           </Routes>
