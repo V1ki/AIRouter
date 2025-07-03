@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from app.models.provider import Model as DBModel, ApiKeyUsage as DBApiKeyUsage, ModelImplementation, ApiKey, FreeQuota, FreeQuotaUsage
@@ -34,6 +34,34 @@ class ModelService:
         )
         db.add(db_usage)
         db.commit()
+        
+        
+    @staticmethod
+    def get_usage(db: Session, 
+                  model_implementation_id: str,
+                  start_date: datetime,
+                  end_date: datetime
+                  ) -> Tuple[float, float]:
+        """
+        获取指定模型实现在指定时间范围内的使用记录
+        
+        参数:
+            db: 数据库会话
+            model_implementation_id: 模型实现ID
+            start_date: 开始时间
+            end_date: 结束时间
+            
+        返回:
+            Tuple[float, float]: 总 token 数, 价格
+        """
+        usages = db.query(DBApiKeyUsage).filter(
+            DBApiKeyUsage.model_implementation_id == model_implementation_id,
+            DBApiKeyUsage.timestamp >= start_date,
+            DBApiKeyUsage.timestamp <= end_date
+        ).all()
+        #TODO: 价格暂时不支持
+        return sum(usage.total_tokens for usage in usages), 0
+    
     
     @staticmethod
     def get_best_implementation(db: Session, model_implementations: List[ModelImplementation]) -> tuple[ModelImplementation, ApiKey]:
@@ -80,10 +108,8 @@ class ModelService:
             if free_quota:
                 for api_key in api_keys:
                     # 检查该API key的免费额度使用情况
-                    quota_usage = db.query(FreeQuotaUsage).filter(
-                        FreeQuotaUsage.api_key_id == api_key.id,
-                        FreeQuotaUsage.free_quota_id == free_quota.id
-                    ).first()
+                    
+                    quota_usage = ModelService.get_usage(db, implementation.id, free_quota.reset_period, datetime.now(timezone.utc))
                     
                     # 如果没有使用记录或者还有剩余额度
                     if not quota_usage or quota_usage.used_amount < free_quota.amount:

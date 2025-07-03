@@ -9,8 +9,19 @@ load_dotenv()
 # Get database URL from environment variable or use a default for development
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/model_providers")
 
-# Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL)
+
+# ------------------------------------------------------------------
+# Engine & sessionmaker
+# ------------------------------------------------------------------
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=20,        # steady connections kept open
+    max_overflow=20,     # temporary bursts
+    pool_timeout=30,     # seconds to wait for a free conn
+    pool_pre_ping=True,  # validate before checkout
+    pool_recycle=1800,   # recycle every 30 min (set 0 to disable)
+    echo=False,          # flip to True to debug pool activity
+)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
