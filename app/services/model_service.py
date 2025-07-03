@@ -59,8 +59,28 @@ class ModelService:
             DBApiKeyUsage.timestamp >= start_date,
             DBApiKeyUsage.timestamp <= end_date
         ).all()
-        #TODO: 价格暂时不支持
-        return sum(usage.total_tokens for usage in usages), 0
+        
+        # 获取模型实现的价格信息
+        model_implementation = db.query(ModelImplementation).filter(
+            ModelImplementation.id == model_implementation_id
+        ).first()
+        
+        total_tokens = sum(usage.total_tokens for usage in usages)
+        total_price = 0.0
+        
+        if model_implementation and model_implementation.pricing_info:
+            pricing_info = model_implementation.pricing_info
+            # 获取输入和输出的价格（通常是每1000个token的价格）
+            input_price_per_1k = float(pricing_info.get('input_price', 0))
+            output_price_per_1k = float(pricing_info.get('output_price', 0))
+            
+            # 计算总价格
+            for usage in usages:
+                prompt_cost = (usage.prompt_tokens / 1000) * input_price_per_1k
+                completion_cost = (usage.completion_tokens / 1000) * output_price_per_1k
+                total_price += prompt_cost + completion_cost
+        
+        return total_tokens, total_price
     
     
     @staticmethod
