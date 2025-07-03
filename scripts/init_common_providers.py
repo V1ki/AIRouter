@@ -10,6 +10,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.db.database import SessionLocal, engine
 from app.models.provider import ModelProvider, Model, ModelImplementation, FreeQuotaType
 from datetime import datetime, timezone
@@ -98,9 +99,15 @@ def init_common_providers():
         # Create providers
         providers = {}
         for provider_data in providers_data:
-            provider = ModelProvider(**provider_data)
-            db.add(provider)
-            providers[provider_data["name"]] = provider
+            # Check if provider with this base_url already exists
+            existing_provider = db.query(ModelProvider).filter_by(base_url=provider_data["base_url"]).first()
+            if existing_provider:
+                print(f"Provider '{provider_data['name']}' with base_url '{provider_data['base_url']}' already exists, skipping...")
+                providers[provider_data["name"]] = existing_provider
+            else:
+                provider = ModelProvider(**provider_data)
+                db.add(provider)
+                providers[provider_data["name"]] = provider
         
         db.flush()
         
@@ -248,9 +255,15 @@ def init_common_providers():
         # Create models
         models = {}
         for model_data in models_data:
-            model = Model(**model_data)
-            db.add(model)
-            models[model_data["name"]] = model
+            # Check if model already exists
+            existing_model = db.query(Model).filter_by(name=model_data["name"]).first()
+            if existing_model:
+                print(f"Model '{model_data['name']}' already exists, skipping...")
+                models[model_data["name"]] = existing_model
+            else:
+                model = Model(**model_data)
+                db.add(model)
+                models[model_data["name"]] = model
         
         db.flush()
         
@@ -318,19 +331,30 @@ def init_common_providers():
         ]
         
         # Create implementations
+        implementation_count = 0
         for impl_data in implementations_data:
             provider_name = impl_data.pop("provider")
             model_name = impl_data.pop("model")
             
             if provider_name in providers and model_name in models:
-                implementation = ModelImplementation(
+                # Check if implementation already exists
+                existing_impl = db.query(ModelImplementation).filter_by(
                     provider_id=providers[provider_name].id,
-                    model_id=models[model_name].id,
-                    is_available=True,
-                    sort_order=0,
-                    **impl_data
-                )
-                db.add(implementation)
+                    model_id=models[model_name].id
+                ).first()
+                
+                if existing_impl:
+                    print(f"Implementation for '{model_name}' on '{provider_name}' already exists, skipping...")
+                else:
+                    implementation = ModelImplementation(
+                        provider_id=providers[provider_name].id,
+                        model_id=models[model_name].id,
+                        is_available=True,
+                        sort_order=0,
+                        **impl_data
+                    )
+                    db.add(implementation)
+                    implementation_count += 1
         
         db.commit()
         print("Successfully initialized common providers and models!")
@@ -344,7 +368,7 @@ def init_common_providers():
         for name in models:
             print(f"  - {name}")
         
-        print(f"\nCreated {len(implementations_data)} model implementations")
+        print(f"\nCreated {implementation_count} model implementations")
         
     except Exception as e:
         print(f"Error: {e}")

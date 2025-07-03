@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime, date
 from uuid import UUID
@@ -36,11 +37,20 @@ def create_provider(
     db: Session = Depends(get_db)
 ):
     """Create a new provider."""
-    db_provider = ModelProvider(**provider.dict())
-    db.add(db_provider)
-    db.commit()
-    db.refresh(db_provider)
-    return db_provider
+    try:
+        db_provider = ModelProvider(**provider.dict())
+        db.add(db_provider)
+        db.commit()
+        db.refresh(db_provider)
+        return db_provider
+    except IntegrityError as e:
+        db.rollback()
+        if "unique constraint" in str(e).lower() and "base_url" in str(e).lower():
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Provider with base_url '{provider.base_url}' already exists"
+            )
+        raise HTTPException(status_code=400, detail="Failed to create provider")
 
 @router.put("/providers/{provider_id}", response_model=ProviderResponse)
 def update_provider(
@@ -53,13 +63,22 @@ def update_provider(
     if not db_provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     
-    update_data = provider.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_provider, field, value)
-    
-    db.commit()
-    db.refresh(db_provider)
-    return db_provider
+    try:
+        update_data = provider.dict(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(db_provider, field, value)
+        
+        db.commit()
+        db.refresh(db_provider)
+        return db_provider
+    except IntegrityError as e:
+        db.rollback()
+        if "unique constraint" in str(e).lower() and "base_url" in str(e).lower():
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Provider with base_url '{provider.base_url}' already exists"
+            )
+        raise HTTPException(status_code=400, detail="Failed to update provider")
 
 @router.delete("/providers/{provider_id}")
 def delete_provider(

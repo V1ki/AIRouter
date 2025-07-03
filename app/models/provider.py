@@ -35,7 +35,7 @@ class ModelProvider(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
-    base_url = Column(String, nullable=False)
+    base_url = Column(String, nullable=False, unique=True)  # Make base_url unique
     description = Column(String(200), nullable=True)
     free_quota_type = Column(Enum(FreeQuotaType), nullable=True)  # 免费额度类型
     

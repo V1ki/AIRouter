@@ -32,8 +32,15 @@ def init_database():
 if __name__ == "__main__":
     init_database()
     
-    # Ask if user wants to initialize common providers
-    response = input("\nDo you want to initialize common AI providers (OpenAI, Claude, Gemini, etc.)? (yes/no): ")
-    if response.lower() == 'yes':
+    # In Docker, don't ask for input
+    import os
+    if os.environ.get("INIT_COMMON_PROVIDERS") == "true":
+        print("\nInitializing common AI providers...")
         from init_common_providers import init_common_providers
         init_common_providers()
+    elif os.isatty(0):  # Only ask if running interactively
+        # Ask if user wants to initialize common providers
+        response = input("\nDo you want to initialize common AI providers (OpenAI, Claude, Gemini, etc.)? (yes/no): ")
+        if response.lower() == 'yes':
+            from init_common_providers import init_common_providers
+            init_common_providers()
