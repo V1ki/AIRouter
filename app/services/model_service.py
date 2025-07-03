@@ -70,14 +70,14 @@ class ModelService:
         
         if model_implementation and model_implementation.pricing_info:
             pricing_info = model_implementation.pricing_info
-            # 获取输入和输出的价格（通常是每1000个token的价格）
-            input_price_per_1k = float(pricing_info.get('input_price', 0))
-            output_price_per_1k = float(pricing_info.get('output_price', 0))
+            # 获取输入和输出的价格（每1M个token的价格）
+            input_price_per_1m = float(pricing_info.get('input_price', 0))
+            output_price_per_1m = float(pricing_info.get('output_price', 0))
             
             # 计算总价格
             for usage in usages:
-                prompt_cost = (usage.prompt_tokens / 1000) * input_price_per_1k
-                completion_cost = (usage.completion_tokens / 1000) * output_price_per_1k
+                prompt_cost = (usage.prompt_tokens / 1_000_000) * input_price_per_1m
+                completion_cost = (usage.completion_tokens / 1_000_000) * output_price_per_1m
                 total_price += prompt_cost + completion_cost
         
         return total_tokens, total_price

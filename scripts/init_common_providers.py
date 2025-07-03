@@ -258,63 +258,63 @@ def init_common_providers():
         implementations_data = [
             # OpenAI implementations
             {"provider": "OpenAI", "model": "gpt-4o", "provider_model_id": "gpt-4o", "context_window": 128000, 
-             "pricing_info": {"input_price": 2.5, "output_price": 10.0}},
+             "pricing_info": {"input_price": 2500, "output_price": 10000}},  # per 1M tokens
             {"provider": "OpenAI", "model": "gpt-4o-mini", "provider_model_id": "gpt-4o-mini", "context_window": 128000,
-             "pricing_info": {"input_price": 0.15, "output_price": 0.6}},
+             "pricing_info": {"input_price": 150, "output_price": 600}},  # per 1M tokens
             {"provider": "OpenAI", "model": "gpt-4-turbo", "provider_model_id": "gpt-4-turbo", "context_window": 128000,
-             "pricing_info": {"input_price": 10.0, "output_price": 30.0}},
+             "pricing_info": {"input_price": 10000, "output_price": 30000}},  # per 1M tokens
             {"provider": "OpenAI", "model": "gpt-3.5-turbo", "provider_model_id": "gpt-3.5-turbo", "context_window": 16385,
-             "pricing_info": {"input_price": 0.5, "output_price": 1.5}},
+             "pricing_info": {"input_price": 500, "output_price": 1500}},  # per 1M tokens
             
             # Anthropic implementations
             {"provider": "Anthropic", "model": "claude-3-opus", "provider_model_id": "claude-3-opus-20240229", "context_window": 200000,
-             "pricing_info": {"input_price": 15.0, "output_price": 75.0}},
+             "pricing_info": {"input_price": 15000, "output_price": 75000}},  # per 1M tokens
             {"provider": "Anthropic", "model": "claude-3-sonnet", "provider_model_id": "claude-3-sonnet-20240229", "context_window": 200000,
-             "pricing_info": {"input_price": 3.0, "output_price": 15.0}},
+             "pricing_info": {"input_price": 3000, "output_price": 15000}},  # per 1M tokens
             {"provider": "Anthropic", "model": "claude-3-haiku", "provider_model_id": "claude-3-haiku-20240307", "context_window": 200000,
-             "pricing_info": {"input_price": 0.25, "output_price": 1.25}},
+             "pricing_info": {"input_price": 250, "output_price": 1250}},  # per 1M tokens
             {"provider": "Anthropic", "model": "claude-3.5-sonnet", "provider_model_id": "claude-3-5-sonnet-20241022", "context_window": 200000,
-             "pricing_info": {"input_price": 3.0, "output_price": 15.0}},
+             "pricing_info": {"input_price": 3000, "output_price": 15000}},  # per 1M tokens
             
             # Google implementations
             {"provider": "Google AI", "model": "gemini-1.5-pro", "provider_model_id": "gemini-1.5-pro", "context_window": 2097152,
-             "pricing_info": {"input_price": 1.25, "output_price": 5.0}},
+             "pricing_info": {"input_price": 1250, "output_price": 5000}},  # per 1M tokens
             {"provider": "Google AI", "model": "gemini-1.5-flash", "provider_model_id": "gemini-1.5-flash", "context_window": 1048576,
-             "pricing_info": {"input_price": 0.075, "output_price": 0.3}},
+             "pricing_info": {"input_price": 75, "output_price": 300}},  # per 1M tokens
             {"provider": "Google AI", "model": "gemini-2.0-flash-exp", "provider_model_id": "gemini-2.0-flash-exp", "context_window": 1048576,
-             "pricing_info": {"input_price": 0.0, "output_price": 0.0}},  # Free during experimental phase
+             "pricing_info": {"input_price": 0, "output_price": 0}},  # Free during experimental phase
             
             # DeepSeek implementations
             {"provider": "DeepSeek", "model": "deepseek-chat", "provider_model_id": "deepseek-chat", "context_window": 128000,
-             "pricing_info": {"input_price": 0.14, "output_price": 0.28}},
+             "pricing_info": {"input_price": 140, "output_price": 280}},  # per 1M tokens
             {"provider": "DeepSeek", "model": "deepseek-coder", "provider_model_id": "deepseek-coder", "context_window": 128000,
-             "pricing_info": {"input_price": 0.14, "output_price": 0.28}},
+             "pricing_info": {"input_price": 140, "output_price": 280}},  # per 1M tokens
             
             # Alibaba implementations
             {"provider": "阿里云百炼", "model": "qwen-max", "provider_model_id": "qwen-max", "context_window": 30000,
-             "pricing_info": {"input_price": 0.02, "output_price": 0.06}},
+             "pricing_info": {"input_price": 20, "output_price": 60}},  # per 1M tokens
             {"provider": "阿里云百炼", "model": "qwen-plus", "provider_model_id": "qwen-plus", "context_window": 130000,
-             "pricing_info": {"input_price": 0.0008, "output_price": 0.002}},
+             "pricing_info": {"input_price": 0.8, "output_price": 2}},  # per 1M tokens
             {"provider": "阿里云百炼", "model": "qwen-turbo", "provider_model_id": "qwen-turbo", "context_window": 130000,
-             "pricing_info": {"input_price": 0.0003, "output_price": 0.0006}},
+             "pricing_info": {"input_price": 0.3, "output_price": 0.6}},  # per 1M tokens
             
             # Zhipu implementations
             {"provider": "智谱AI", "model": "glm-4", "provider_model_id": "glm-4", "context_window": 128000,
-             "pricing_info": {"input_price": 0.1, "output_price": 0.1}},
+             "pricing_info": {"input_price": 100, "output_price": 100}},  # per 1M tokens
             {"provider": "智谱AI", "model": "glm-4v", "provider_model_id": "glm-4v", "context_window": 8192,
-             "pricing_info": {"input_price": 0.1, "output_price": 0.1}},
+             "pricing_info": {"input_price": 100, "output_price": 100}},  # per 1M tokens
             
             # Moonshot implementations
             {"provider": "Moonshot", "model": "moonshot-v1", "provider_model_id": "moonshot-v1-128k", "context_window": 128000,
-             "pricing_info": {"input_price": 0.06, "output_price": 0.06}},
+             "pricing_info": {"input_price": 60, "output_price": 60}},  # per 1M tokens
             
             # SiliconFlow implementations (offering multiple models)
             {"provider": "硅基流动", "model": "qwen-max", "provider_model_id": "Qwen/Qwen2.5-72B-Instruct", "context_window": 32768,
-             "pricing_info": {"input_price": 0.0, "output_price": 0.0}},  # Often free
+             "pricing_info": {"input_price": 0, "output_price": 0}},  # Often free
             {"provider": "硅基流动", "model": "glm-4", "provider_model_id": "THUDM/glm-4-9b-chat", "context_window": 128000,
-             "pricing_info": {"input_price": 0.0, "output_price": 0.0}},  # Often free
+             "pricing_info": {"input_price": 0, "output_price": 0}},  # Often free
             {"provider": "硅基流动", "model": "deepseek-chat", "provider_model_id": "deepseek-ai/DeepSeek-V2.5", "context_window": 128000,
-             "pricing_info": {"input_price": 0.0, "output_price": 0.0}},  # Often free
+             "pricing_info": {"input_price": 0, "output_price": 0}},  # Often free
         ]
         
         # Create implementations

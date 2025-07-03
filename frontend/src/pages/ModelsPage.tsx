@@ -374,8 +374,8 @@ export default function ModelsPage() {
                       <TableCell>
                         {impl.pricing_info?.input_price && impl.pricing_info?.output_price ? (
                           <Typography variant="caption">
-                            In: ${impl.pricing_info.input_price}/1K<br />
-                            Out: ${impl.pricing_info.output_price}/1K
+                            In: ${impl.pricing_info.input_price}/1M<br />
+                            Out: ${impl.pricing_info.output_price}/1M
                           </Typography>
                         ) : '-'}
                       </TableCell>
@@ -531,7 +531,7 @@ export default function ModelsPage() {
           />
           <TextField
             margin="dense"
-            label="Input Price (per 1K tokens)"
+            label="Input Price (per 1M tokens)"
             fullWidth
             type="number"
             value={implFormData.pricing_info.input_price || ''}
@@ -543,7 +543,7 @@ export default function ModelsPage() {
           />
           <TextField
             margin="dense"
-            label="Output Price (per 1K tokens)"
+            label="Output Price (per 1M tokens)"
             fullWidth
             type="number"
             value={implFormData.pricing_info.output_price || ''}
