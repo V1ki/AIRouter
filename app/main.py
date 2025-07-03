@@ -4,7 +4,8 @@ from fastapi.responses import StreamingResponse
 from typing import Any, Dict, List, Optional
 from openai.types.model import Model
 
-from app.routers import models,chat,responses
+from app.routers import models,chat,responses,management
+from app.agents.router import agents_router
 
 app = FastAPI(
     title="AI Router",
@@ -27,5 +28,9 @@ v1_router = APIRouter(prefix="/v1", tags=["v1"])
 v1_router.include_router(models.router)
 v1_router.include_router(chat.router)
 v1_router.include_router(responses.router)
+v1_router.include_router(agents_router)
 # 将v1_router添加到主应用
 app.include_router(v1_router)
+
+# Include management router directly on app (not under /v1)
+app.include_router(management.router)

@@ -90,7 +90,7 @@ async def get_response(
 ):
     logger.info(f"Received response request: {response_id}, body: {body}")
 
-    response = ResponseService.get_esponse(db, response_id)
+    response = ResponseService.get_response(db, response_id)
     return response
 
 @router.get("/{response_id}/input_items")
