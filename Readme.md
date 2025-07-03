@@ -44,9 +44,29 @@ AI Router 已预置了以下常见的 AI 服务提供商：
 
 # 使用方法
 
-## Docker 部署
+## 快速开始（Docker 一键部署）
 
-1. **准备 .env 文件**
+```bash
+# 克隆项目
+git clone https://github.com/your-repo/ai-router.git
+cd ai-router
+
+# 启动服务（包含数据库、后端、前端）
+docker-compose up -d
+
+# 访问应用
+# 打开浏览器访问: http://localhost:8000
+```
+
+首次启动会自动：
+- ✅ 创建 PostgreSQL 数据库
+- ✅ 初始化数据库表结构  
+- ✅ 导入常用 AI 提供商（OpenAI、Claude、Gemini、DeepSeek 等）
+- ✅ 启动管理界面和 API 服务
+
+## 传统部署方式
+
+### 1. 准备 .env 文件
 
 在项目根目录下创建 `.env` 文件，内容示例：
 

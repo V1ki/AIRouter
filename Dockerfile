@@ -1,18 +1,55 @@
-# syntax=docker/dockerfile:1
+# Multi-stage build for AI Router
+
+# Stage 1: Build frontend
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+RUN npm ci --only=production
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build frontend
+RUN npm run build
+
+# Stage 2: Python backend with frontend
 FROM python:3.11-slim
 
-# 设置工作目录
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# 安装依赖
+# Install Python dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制项目文件
-COPY . .
+# Copy backend code
+COPY app ./app
+COPY scripts ./scripts
 
-# 暴露端口
+# Copy frontend build from previous stage
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
+
+# Copy startup script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Create .env file placeholder
+RUN touch .env
+
+# Expose ports
 EXPOSE 8000
 
-# 启动命令
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Use entrypoint script
+ENTRYPOINT ["./docker-entrypoint.sh"]
