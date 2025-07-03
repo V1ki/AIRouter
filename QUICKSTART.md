@@ -54,7 +54,7 @@ npm start
 
 - **Dashboard**: 查看系统概览
 - **Providers & Keys**: 管理 AI 服务提供商和 API 密钥（统一管理界面）
-- **Models**: 管理模型和实现
+- **Models & Implementations**: 管理模型和提供商实现（统一管理界面）
 - **Usage**: 查看 Token 使用统计
 
 ### 2. API 使用

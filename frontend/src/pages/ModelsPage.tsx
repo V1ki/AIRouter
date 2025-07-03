@@ -9,30 +9,28 @@ import {
   DialogTitle,
   IconButton,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
   Chip,
   Alert,
-  Tabs,
-  Tab,
   MenuItem,
   FormControlLabel,
   Switch,
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
 } from '@mui/material'
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material'
 import { modelService, modelImplementationService, providerService } from '../services/api'
 import type { Model, ModelImplementation, Provider } from '../types'
@@ -60,11 +58,11 @@ interface ImplementationFormData {
 
 export default function ModelsPage() {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState(0)
   const [modelOpen, setModelOpen] = useState(false)
   const [implOpen, setImplOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [editingImpl, setEditingImpl] = useState<ModelImplementation | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [modelFormData, setModelFormData] = useState<ModelFormData>({
     name: '',
     description: '',
@@ -83,13 +81,14 @@ export default function ModelsPage() {
   })
   const [error, setError] = useState<string | null>(null)
   const [capabilityInput, setCapabilityInput] = useState('')
+  const [expandedModel, setExpandedModel] = useState<string | null>(null)
 
   const { data: models = [], isLoading: modelsLoading } = useQuery({
     queryKey: ['models'],
     queryFn: modelService.getAll,
   })
 
-  const { data: implementations = [], isLoading: implLoading } = useQuery({
+  const { data: implementations = [] } = useQuery({
     queryKey: ['implementations'],
     queryFn: modelImplementationService.getAll,
   })
@@ -198,7 +197,14 @@ export default function ModelsPage() {
     }
   }
 
-  const handleImplOpen = (impl?: ModelImplementation) => {
+  const handleModelDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this model? All associated implementations will also be deleted.')) {
+      deleteModelMutation.mutate(id)
+    }
+  }
+
+  const handleImplOpen = (modelId: string, impl?: ModelImplementation) => {
+    setSelectedModelId(modelId)
     if (impl) {
       setEditingImpl(impl)
       setImplFormData({
@@ -209,13 +215,13 @@ export default function ModelsPage() {
         context_window: impl.context_window || 4096,
         pricing_info: impl.pricing_info || {},
         is_available: impl.is_available,
-        sort_order: impl.sort_order,
+        sort_order: impl.sort_order || 0,
       })
     } else {
       setEditingImpl(null)
       setImplFormData({
         provider_id: '',
-        model_id: '',
+        model_id: modelId,
         provider_model_id: '',
         version: '',
         context_window: 4096,
@@ -245,6 +251,12 @@ export default function ModelsPage() {
     }
   }
 
+  const handleImplDelete = (id: string) => {
+    if (window.confirm('Delete this implementation?')) {
+      deleteImplMutation.mutate(id)
+    }
+  }
+
   const addCapability = () => {
     if (capabilityInput && !modelFormData.capabilities.includes(capabilityInput)) {
       setModelFormData({
@@ -255,158 +267,177 @@ export default function ModelsPage() {
     }
   }
 
-  const removeCapability = (capability: string) => {
+  const removeCapability = (cap: string) => {
     setModelFormData({
       ...modelFormData,
-      capabilities: modelFormData.capabilities.filter(c => c !== capability),
+      capabilities: modelFormData.capabilities.filter(c => c !== cap),
     })
+  }
+
+  const getModelImplementations = (modelId: string) => {
+    return implementations.filter(impl => impl.model_id === modelId)
+  }
+
+  const handleAccordionChange = (modelId: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedModel(isExpanded ? modelId : null)
   }
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Models & Implementations
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Models & Implementations</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => handleModelOpen()}
+        >
+          Add Model
+        </Button>
+      </Box>
 
-      <Paper sx={{ mb: 2 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab label="Models" />
-          <Tab label="Implementations" />
-        </Tabs>
-      </Paper>
-
-      {tab === 0 && (
+      {models.length === 0 && !modelsLoading ? (
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <Typography color="textSecondary">No models found. Add a model to get started.</Typography>
+        </Paper>
+      ) : (
         <Box>
-          <Box display="flex" justifyContent="flex-end" mb={2}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleModelOpen()}
-            >
-              Add Model
-            </Button>
-          </Box>
-
-          {models.map((model) => (
-            <Accordion key={model.id}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Box display="flex" alignItems="center" width="100%">
-                  <Typography sx={{ flexGrow: 1 }}>
-                    {model.name} - <Chip label={model.family} size="small" />
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleModelOpen(model)
-                    }}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (window.confirm('Delete this model?')) {
-                        deleteModelMutation.mutate(model.id)
-                      }
-                    }}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                  {model.description || 'No description'}
-                </Typography>
-                <Box mb={2}>
-                  <Typography variant="subtitle2">Capabilities:</Typography>
-                  <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
-                    {model.capabilities.map((cap) => (
-                      <Chip key={cap} label={cap} size="small" />
-                    ))}
+          {models.map((model) => {
+            const modelImplementations = getModelImplementations(model.id)
+            return (
+              <Accordion
+                key={model.id}
+                expanded={expandedModel === model.id}
+                onChange={handleAccordionChange(model.id)}
+                sx={{ mb: 1 }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box display="flex" alignItems="center" width="100%" pr={2}>
+                    <Box flex={1}>
+                      <Typography variant="h6">{model.name}</Typography>
+                      <Box display="flex" gap={1} mt={0.5}>
+                        <Chip label={model.family} size="small" color="primary" />
+                        {model.capabilities.map((cap) => (
+                          <Chip key={cap} label={cap} size="small" variant="outlined" />
+                        ))}
+                      </Box>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Chip
+                        icon={<SettingsIcon />}
+                        label={`${modelImplementations.length} Implementation${modelImplementations.length !== 1 ? 's' : ''}`}
+                        size="small"
+                        color={modelImplementations.length > 0 ? 'success' : 'default'}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleModelOpen(model)
+                        }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleModelDelete(model.id)
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Box>
                   </Box>
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-          ))}
-        </Box>
-      )}
-
-      {tab === 1 && (
-        <Box>
-          <Box display="flex" justifyContent="flex-end" mb={2}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => handleImplOpen()}
-            >
-              Add Implementation
-            </Button>
-          </Box>
-
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Model</TableCell>
-                  <TableCell>Provider</TableCell>
-                  <TableCell>Provider Model ID</TableCell>
-                  <TableCell>Version</TableCell>
-                  <TableCell>Context Window</TableCell>
-                  <TableCell>Pricing</TableCell>
-                  <TableCell>Available</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {implementations.map((impl) => {
-                  const model = models.find(m => m.id === impl.model_id)
-                  const provider = providers.find(p => p.id === impl.provider_id)
-                  return (
-                    <TableRow key={impl.id}>
-                      <TableCell>{model?.name || 'Unknown'}</TableCell>
-                      <TableCell>{provider?.name || 'Unknown'}</TableCell>
-                      <TableCell>{impl.provider_model_id}</TableCell>
-                      <TableCell>{impl.version || '-'}</TableCell>
-                      <TableCell>{impl.context_window || '-'}</TableCell>
-                      <TableCell>
-                        {impl.pricing_info?.input_price && impl.pricing_info?.output_price ? (
-                          <Typography variant="caption">
-                            In: ${impl.pricing_info.input_price}/1M<br />
-                            Out: ${impl.pricing_info.output_price}/1M
-                          </Typography>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={impl.is_available ? 'Yes' : 'No'}
-                          color={impl.is_available ? 'success' : 'default'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <IconButton size="small" onClick={() => handleImplOpen(impl)}>
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            if (window.confirm('Delete this implementation?')) {
-                              deleteImplMutation.mutate(impl.id)
-                            }
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
+                </AccordionSummary>
+                <AccordionDetails>
+                  {model.description && (
+                    <Typography variant="body2" color="textSecondary" paragraph>
+                      {model.description}
+                    </Typography>
                   )}
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  
+                  <Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="subtitle1" fontWeight="bold">Implementations</Typography>
+                      <Button
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={() => handleImplOpen(model.id)}
+                      >
+                        Add Implementation
+                      </Button>
+                    </Box>
+                    
+                    {modelImplementations.length === 0 ? (
+                      <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
+                        <Typography variant="body2" color="textSecondary">
+                          No implementations configured for this model
+                        </Typography>
+                      </Paper>
+                    ) : (
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Provider</TableCell>
+                            <TableCell>Provider Model ID</TableCell>
+                            <TableCell>Context Window</TableCell>
+                            <TableCell>Pricing</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {modelImplementations.map((impl) => {
+                            const provider = providers.find(p => p.id === impl.provider_id)
+                            return (
+                              <TableRow key={impl.id}>
+                                <TableCell>{provider?.name || 'Unknown'}</TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                                    {impl.provider_model_id}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>{impl.context_window?.toLocaleString() || '-'}</TableCell>
+                                <TableCell>
+                                  {impl.pricing_info?.input_price && impl.pricing_info?.output_price ? (
+                                    <Typography variant="caption">
+                                      In: ${impl.pricing_info.input_price}/1M<br />
+                                      Out: ${impl.pricing_info.output_price}/1M
+                                    </Typography>
+                                  ) : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={impl.is_available ? 'Available' : 'Unavailable'}
+                                    color={impl.is_available ? 'success' : 'default'}
+                                    size="small"
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleImplOpen(model.id, impl)}
+                                  >
+                                    <EditIcon />
+                                  </IconButton>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleImplDelete(impl.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </Box>
+                </AccordionDetails>
+              </Accordion>
+            )
+          })}
         </Box>
       )}
 
@@ -448,7 +479,12 @@ export default function ModelsPage() {
                 size="small"
                 value={capabilityInput}
                 onChange={(e) => setCapabilityInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addCapability()}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addCapability()
+                  }
+                }}
                 placeholder="Add capability"
               />
               <Button size="small" onClick={addCapability}>Add</Button>
@@ -478,19 +514,6 @@ export default function ModelsPage() {
         <DialogTitle>{editingImpl ? 'Edit Implementation' : 'Add Implementation'}</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <TextField
-            select
-            margin="dense"
-            label="Model"
-            fullWidth
-            value={implFormData.model_id}
-            onChange={(e) => setImplFormData({ ...implFormData, model_id: e.target.value })}
-            sx={{ mb: 2 }}
-          >
-            {models.map((model) => (
-              <MenuItem key={model.id} value={model.id}>{model.name}</MenuItem>
-            ))}
-          </TextField>
           <TextField
             select
             margin="dense"
@@ -560,6 +583,7 @@ export default function ModelsPage() {
             type="number"
             value={implFormData.sort_order}
             onChange={(e) => setImplFormData({ ...implFormData, sort_order: parseInt(e.target.value) || 0 })}
+            helperText="Lower values have higher priority"
             sx={{ mb: 2 }}
           />
           <FormControlLabel

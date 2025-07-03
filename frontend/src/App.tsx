@@ -37,7 +37,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Providers & Keys', icon: <ProvidersIcon />, path: '/providers' },
-  { text: 'Models', icon: <ModelsIcon />, path: '/models' },
+  { text: 'Models & Implementations', icon: <ModelsIcon />, path: '/models' },
   { text: 'Usage', icon: <UsageIcon />, path: '/usage' },
 ]
 
