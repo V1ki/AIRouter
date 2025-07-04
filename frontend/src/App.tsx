@@ -20,11 +20,13 @@ import {
   ModelTraining as ModelsIcon,
   Analytics as UsageIcon,
   Dashboard as DashboardIcon,
+  AttachMoney as PricingIcon,
 } from '@mui/icons-material'
 import ProvidersPage from './pages/ProvidersPage'
 import ModelsPage from './pages/ModelsPage'
 import UsagePage from './pages/UsagePage'
 import DashboardPage from './pages/DashboardPage'
+import PricingPage from './pages/PricingPage'
 
 const drawerWidth = 240
 
@@ -38,6 +40,7 @@ const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Providers & Keys', icon: <ProvidersIcon />, path: '/providers' },
   { text: 'Models & Implementations', icon: <ModelsIcon />, path: '/models' },
+  { text: 'Pricing', icon: <PricingIcon />, path: '/pricing' },
   { text: 'Usage', icon: <UsageIcon />, path: '/usage' },
 ]
 
@@ -140,6 +143,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/providers" element={<ProvidersPage />} />
             <Route path="/models" element={<ModelsPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/usage" element={<UsagePage />} />
           </Routes>
         </Container>
