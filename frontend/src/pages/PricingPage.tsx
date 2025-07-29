@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import {
   Box,
   Typography,
@@ -25,11 +25,7 @@ import {
   Grid,
 } from '@mui/material'
 import { 
-  Edit as EditIcon, 
-  Refresh as RefreshIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  AttachMoney as MoneyIcon
+  Edit as EditIcon
 } from '@mui/icons-material'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
@@ -68,10 +64,6 @@ const pricingService = {
     return data
   },
   
-  refresh: async () => {
-    const { data } = await axios.post(`${API_BASE_URL}/api/pricing/refresh`)
-    return data
-  },
   
   getComparison: async (): Promise<PriceComparison> => {
     const { data } = await axios.get(`${API_BASE_URL}/api/pricing/comparison`)
@@ -109,14 +101,6 @@ export default function PricingPage() {
     },
   })
 
-  const refreshPricesMutation = useMutation({
-    mutationFn: pricingService.refresh,
-    onSuccess: () => {
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['prices'] })
-      }, 2000)
-    },
-  })
 
   const handleEdit = (price: ModelPrice) => {
     setEditingPrice(price)
@@ -164,30 +148,14 @@ export default function PricingPage() {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Model Pricing</Typography>
-        <Box>
-          <Button
-            variant="outlined"
-            sx={{ mr: 1 }}
-            onClick={() => setShowComparison(!showComparison)}
-          >
-            {showComparison ? 'Hide' : 'Show'} Comparison
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<RefreshIcon />}
-            onClick={() => refreshPricesMutation.mutate()}
-            disabled={refreshPricesMutation.isPending}
-          >
-            Refresh Prices
-          </Button>
-        </Box>
+        <Button
+          variant="outlined"
+          onClick={() => setShowComparison(!showComparison)}
+        >
+          {showComparison ? 'Hide' : 'Show'} Comparison
+        </Button>
       </Box>
 
-      {refreshPricesMutation.isSuccess && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Price refresh started in background. Prices will update shortly.
-        </Alert>
-      )}
 
       {/* Price Comparison */}
       {showComparison && (

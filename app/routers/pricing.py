@@ -2,14 +2,13 @@
 Pricing management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from datetime import datetime
 
 from app.db.database import get_db
 from app.models.provider import ModelImplementation
-from app.services.price_updater import price_updater
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/pricing", tags=["pricing"])
@@ -147,25 +146,6 @@ def bulk_update_prices(
         "success": len(errors) == 0
     }
 
-@router.post("/refresh")
-async def refresh_prices(background_tasks: BackgroundTasks):
-    """Trigger a manual price refresh from known sources"""
-    # Run price update in background
-    background_tasks.add_task(price_updater.run_price_update)
-    
-    return {
-        "message": "Price refresh started in background",
-        "last_update": price_updater.last_update.isoformat() if price_updater.last_update else None
-    }
-
-@router.get("/sources")
-def get_price_sources():
-    """Get list of price sources"""
-    return {
-        "sources": price_updater.price_sources,
-        "update_interval": str(price_updater.update_interval),
-        "last_update": price_updater.last_update.isoformat() if price_updater.last_update else None
-    }
 
 @router.get("/comparison")
 def get_price_comparison(

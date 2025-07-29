@@ -10,6 +10,10 @@ python scripts/init_db.py
 if [ "$INIT_COMMON_PROVIDERS" = "true" ]; then
     echo "Initializing common providers..."
     python scripts/init_common_providers.py
+    
+    # Fix prices if they were incorrectly multiplied
+    echo "Checking and fixing model prices..."
+    python scripts/fix_model_prices.py
 fi
 
 echo "Starting application..."
