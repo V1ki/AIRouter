@@ -24,6 +24,14 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Card,
+  CardContent,
+  Grid,
+  useTheme,
+  alpha,
+  Tooltip,
+  InputAdornment,
+  Collapse,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -31,8 +39,17 @@ import {
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
   Settings as SettingsIcon,
+  ModelTraining as ModelIcon,
+  Search as SearchIcon,
+  AttachMoney as MoneyIcon,
+  Memory as MemoryIcon,
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material'
 import { modelService, modelImplementationService, providerService } from '../services/api'
+import { PageHeader } from '../components/PageHeader'
+import { EmptyState } from '../components/EmptyState'
+import { ModelCard } from '../components/ModelCard'
 import type { Model, ModelImplementation } from '../types'
 
 interface ModelFormData {
@@ -57,9 +74,11 @@ interface ImplementationFormData {
 }
 
 export default function ModelsPage() {
+  const theme = useTheme()
   const queryClient = useQueryClient()
   const [modelOpen, setModelOpen] = useState(false)
   const [implOpen, setImplOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [editingImpl, setEditingImpl] = useState<ModelImplementation | null>(null)
   const [modelFormData, setModelFormData] = useState<ModelFormData>({
@@ -280,164 +299,252 @@ export default function ModelsPage() {
     setExpandedModel(isExpanded ? modelId : null)
   }
 
+  const filteredModels = models.filter(model =>
+    model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    model.family.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    model.capabilities.some(cap => cap.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
+
+  if (!modelsLoading && models.length === 0) {
+    return (
+      <Box>
+        <PageHeader
+          title="Models"
+          subtitle="Configure AI models and their provider implementations"
+          breadcrumbs={[
+            { label: 'Home', path: '/' },
+            { label: 'Models' },
+          ]}
+        />
+        <EmptyState
+          icon={<ModelIcon />}
+          title="No models configured"
+          description="Add your first AI model to get started"
+          action={{
+            label: "Add Model",
+            onClick: () => handleModelOpen(),
+            startIcon: <AddIcon />
+          }}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Models & Implementations</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleModelOpen()}
-        >
-          Add Model
-        </Button>
-      </Box>
+      <PageHeader
+        title="Models"
+        subtitle="Configure AI models and their provider implementations"
+        breadcrumbs={[
+          { label: 'Home', path: '/' },
+          { label: 'Models' },
+        ]}
+        action={
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleModelOpen()}
+          >
+            Add Model
+          </Button>
+        }
+      />
 
-      {models.length === 0 && !modelsLoading ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography color="textSecondary">No models found. Add a model to get started.</Typography>
-        </Paper>
-      ) : (
-        <Box>
-          {models.map((model) => {
-            const modelImplementations = getModelImplementations(model.id)
-            return (
-              <Accordion
-                key={model.id}
-                expanded={expandedModel === model.id}
-                onChange={handleAccordionChange(model.id)}
-                sx={{ mb: 1 }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Box display="flex" alignItems="center" width="100%" pr={2}>
-                    <Box flex={1}>
-                      <Typography variant="h6">{model.name}</Typography>
-                      <Box display="flex" gap={1} mt={0.5}>
-                        <Chip label={model.family} size="small" color="primary" />
-                        {model.capabilities.map((cap) => (
-                          <Chip key={cap} label={cap} size="small" variant="outlined" />
-                        ))}
-                      </Box>
-                    </Box>
-                    <Box display="flex" alignItems="center" gap={2}>
-                      <Chip
-                        icon={<SettingsIcon />}
-                        label={`${modelImplementations.length} Implementation${modelImplementations.length !== 1 ? 's' : ''}`}
-                        size="small"
-                        color={modelImplementations.length > 0 ? 'success' : 'default'}
-                      />
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleModelOpen(model)
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleModelDelete(model.id)
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails>
-                  {model.description && (
-                    <Typography variant="body2" color="textSecondary" paragraph>
-                      {model.description}
-                    </Typography>
-                  )}
-                  
-                  <Box>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                      <Typography variant="subtitle1" fontWeight="bold">Implementations</Typography>
-                      <Button
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={() => handleImplOpen(model.id)}
-                      >
-                        Add Implementation
-                      </Button>
-                    </Box>
-                    
-                    {modelImplementations.length === 0 ? (
-                      <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="body2" color="textSecondary">
-                          No implementations configured for this model
+      {/* Search Bar */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <TextField
+            fullWidth
+            placeholder="Search models by name, family, or capabilities..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Models Grid */}
+      <Grid container spacing={3}>
+        {filteredModels.map((model) => {
+          const modelImplementations = getModelImplementations(model.id)
+          const availableImplementations = modelImplementations.filter(impl => impl.is_available)
+          
+          return (
+            <Grid item xs={12} key={model.id}>
+              <Box>
+                <ModelCard
+                  name={model.name}
+                  family={model.family}
+                  capabilities={model.capabilities}
+                  description={model.description}
+                  implementationCount={modelImplementations.length}
+                  availableCount={availableImplementations.length}
+                  isExpanded={expandedModel === model.id}
+                  onEdit={() => handleModelOpen(model)}
+                  onDelete={() => handleModelDelete(model.id)}
+                  onClick={() => handleAccordionChange(model.id)(null as any, expandedModel !== model.id)}
+                />
+                
+                <Collapse in={expandedModel === model.id}>
+                  <Card sx={{ mt: 2, ml: 7, border: `1px solid ${theme.palette.divider}` }}>
+                    <CardContent>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                        <Typography variant="h6" fontWeight={600}>
+                          Provider Implementations
                         </Typography>
-                      </Paper>
-                    ) : (
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Provider</TableCell>
-                            <TableCell>Provider Model ID</TableCell>
-                            <TableCell>Context Window</TableCell>
-                            <TableCell>Pricing</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell align="right">Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<AddIcon />}
+                          onClick={() => handleImplOpen(model.id)}
+                        >
+                          Add Implementation
+                        </Button>
+                      </Box>
+                    
+                      {modelImplementations.length === 0 ? (
+                        <Box
+                          sx={{
+                            p: 3,
+                            textAlign: 'center',
+                            backgroundColor: alpha(theme.palette.grey[500], 0.04),
+                            borderRadius: 2,
+                            border: `1px dashed ${theme.palette.divider}`,
+                          }}
+                        >
+                          <SettingsIcon sx={{ fontSize: 40, color: theme.palette.text.disabled, mb: 1 }} />
+                          <Typography variant="body2" color="text.secondary">
+                            No implementations configured for this model
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Grid container spacing={2}>
                           {modelImplementations.map((impl) => {
                             const provider = providers.find(p => p.id === impl.provider_id)
                             return (
-                              <TableRow key={impl.id}>
-                                <TableCell>{provider?.name || 'Unknown'}</TableCell>
-                                <TableCell>
-                                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                                    {impl.provider_model_id}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell>{impl.context_window?.toLocaleString() || '-'}</TableCell>
-                                <TableCell>
-                                  {impl.pricing_info?.input_price && impl.pricing_info?.output_price ? (
-                                    <Typography variant="caption">
-                                      In: ${impl.pricing_info.input_price}/1M<br />
-                                      Out: ${impl.pricing_info.output_price}/1M
+                              <Grid item xs={12} md={6} key={impl.id}>
+                                <Paper
+                                  sx={{
+                                    p: 2,
+                                    border: `1px solid ${impl.is_available ? theme.palette.success.light : theme.palette.divider}`,
+                                    backgroundColor: impl.is_available 
+                                      ? alpha(theme.palette.success.main, 0.04) 
+                                      : theme.palette.background.paper,
+                                  }}
+                                >
+                                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                                    <Box>
+                                      <Typography variant="subtitle1" fontWeight={600}>
+                                        {provider?.name || 'Unknown'}
+                                      </Typography>
+                                      <Typography 
+                                        variant="body2" 
+                                        sx={{ 
+                                          fontFamily: 'monospace',
+                                          color: theme.palette.text.secondary,
+                                        }}
+                                      >
+                                        {impl.provider_model_id}
+                                      </Typography>
+                                    </Box>
+                                    <Box display="flex" gap={0.5}>
+                                      <Tooltip title="Edit">
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleImplOpen(model.id, impl)}
+                                        >
+                                          <EditIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="Delete">
+                                        <IconButton
+                                          size="small"
+                                          color="error"
+                                          onClick={() => handleImplDelete(impl.id)}
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Box>
+                                  </Box>
+                                  
+                                  <Box display="flex" gap={2} mb={1}>
+                                    {impl.context_window && (
+                                      <Box display="flex" alignItems="center" gap={0.5}>
+                                        <MemoryIcon sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
+                                        <Typography variant="caption" color="text.secondary">
+                                          {impl.context_window.toLocaleString()} tokens
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                    {impl.version && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        v{impl.version}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                  
+                                  {(impl.pricing_info?.input_price || impl.pricing_info?.output_price) && (
+                                    <Box 
+                                      sx={{ 
+                                        mt: 1, 
+                                        p: 1, 
+                                        backgroundColor: alpha(theme.palette.info.main, 0.08),
+                                        borderRadius: 1,
+                                      }}
+                                    >
+                                      <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
+                                        <MoneyIcon sx={{ fontSize: 16, color: theme.palette.info.main }} />
+                                        <Typography variant="caption" fontWeight={600} color="info.dark">
+                                          Pricing per 1M tokens
+                                        </Typography>
+                                      </Box>
+                                      <Box display="flex" gap={2}>
+                                        {impl.pricing_info?.input_price && (
+                                          <Typography variant="caption">
+                                            Input: ${impl.pricing_info.input_price}
+                                          </Typography>
+                                        )}
+                                        {impl.pricing_info?.output_price && (
+                                          <Typography variant="caption">
+                                            Output: ${impl.pricing_info.output_price}
+                                          </Typography>
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  )}
+                                  
+                                  <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+                                    <Chip
+                                      label={impl.is_available ? 'Available' : 'Unavailable'}
+                                      size="small"
+                                      color={impl.is_available ? 'success' : 'default'}
+                                      icon={impl.is_available ? <CheckIcon /> : <CancelIcon />}
+                                    />
+                                    <Typography variant="caption" color="text.secondary">
+                                      Priority: {impl.sort_order || 0}
                                     </Typography>
-                                  ) : '-'}
-                                </TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={impl.is_available ? 'Available' : 'Unavailable'}
-                                    color={impl.is_available ? 'success' : 'default'}
-                                    size="small"
-                                  />
-                                </TableCell>
-                                <TableCell align="right">
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleImplOpen(model.id, impl)}
-                                  >
-                                    <EditIcon />
-                                  </IconButton>
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => handleImplDelete(impl.id)}
-                                  >
-                                    <DeleteIcon />
-                                  </IconButton>
-                                </TableCell>
-                              </TableRow>
+                                  </Box>
+                                </Paper>
+                              </Grid>
                             )
                           })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
-            )
-          })}
-        </Box>
-      )}
+                        </Grid>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Collapse>
+              </Box>
+            </Grid>
+          )
+        })}
+      </Grid>
 
       {/* Model Dialog */}
       <Dialog open={modelOpen} onClose={handleModelClose} maxWidth="sm" fullWidth>

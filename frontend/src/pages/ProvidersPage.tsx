@@ -22,6 +22,14 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Card,
+  CardContent,
+  Grid,
+  useTheme,
+  alpha,
+  Tooltip,
+  LinearProgress,
+  InputAdornment,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -29,8 +37,14 @@ import {
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
   Key as KeyIcon,
+  CloudQueue as CloudIcon,
+  Link as LinkIcon,
+  Description as DescriptionIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material'
 import { providerService, apiKeyService } from '../services/api'
+import { PageHeader } from '../components/PageHeader'
+import { EmptyState } from '../components/EmptyState'
 import type { Provider, ApiKey } from '../types'
 
 interface ProviderFormData {
@@ -48,9 +62,11 @@ interface ApiKeyFormData {
 }
 
 export default function ProvidersPage() {
+  const theme = useTheme()
   const queryClient = useQueryClient()
   const [providerOpen, setProviderOpen] = useState(false)
   const [apiKeyOpen, setApiKeyOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [editingApiKey, setEditingApiKey] = useState<ApiKey | null>(null)
   const [providerFormData, setProviderFormData] = useState<ProviderFormData>({
@@ -234,74 +250,263 @@ export default function ProvidersPage() {
     setExpandedProvider(isExpanded ? providerId : null)
   }
 
+  const filteredProviders = providers.filter(provider =>
+    provider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    provider.base_url.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  if (!isLoading && providers.length === 0) {
+    return (
+      <Box>
+        <PageHeader
+          title="Providers"
+          subtitle="Connect and manage AI providers"
+          breadcrumbs={[
+            { label: 'Home', path: '/' },
+            { label: 'Providers' },
+          ]}
+        />
+        <EmptyState
+          icon={<CloudIcon />}
+          title="No providers configured"
+          description="Add your first AI provider to get started"
+          action={{
+            label: "Add Provider",
+            onClick: () => handleProviderOpen(),
+            startIcon: <AddIcon />
+          }}
+        />
+      </Box>
+    )
+  }
+
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Providers & API Keys</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleProviderOpen()}
-        >
-          Add Provider
-        </Button>
-      </Box>
+      <PageHeader
+        title="Providers"
+        subtitle="Connect and manage AI providers and their API keys"
+        breadcrumbs={[
+          { label: 'Home', path: '/' },
+          { label: 'Providers' },
+        ]}
+        action={
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleProviderOpen()}
+          >
+            Add Provider
+          </Button>
+        }
+      />
 
-      {providers.length === 0 && !isLoading ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography color="textSecondary">No providers found. Add a provider to get started.</Typography>
-        </Paper>
-      ) : (
-        <Box>
-          {providers.map((provider) => {
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total Providers
+                  </Typography>
+                  <Typography variant="h4" fontWeight={600}>
+                    {providers.length}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CloudIcon color="primary" />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Total API Keys
+                  </Typography>
+                  <Typography variant="h4" fontWeight={600}>
+                    {apiKeys.length}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <KeyIcon color="success" />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardContent>
+              <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Active Providers
+                  </Typography>
+                  <Typography variant="h4" fontWeight={600}>
+                    {providers.filter(p => getProviderApiKeys(p.id).length > 0).length}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <LinkIcon color="info" />
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Search and Provider List */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <TextField
+            fullWidth
+            placeholder="Search providers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={{ mb: 3 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
+          
+          {filteredProviders.map((provider) => {
             const providerApiKeys = getProviderApiKeys(provider.id)
             return (
               <Accordion
                 key={provider.id}
                 expanded={expandedProvider === provider.id}
                 onChange={handleAccordionChange(provider.id)}
-                sx={{ mb: 1 }}
+                sx={{ 
+                  mb: 2,
+                  '&:before': { display: 'none' },
+                  boxShadow: 'none',
+                  border: `1px solid ${theme.palette.divider}`,
+                  '&.Mui-expanded': {
+                    margin: '0 0 16px 0',
+                  },
+                }}
               >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <AccordionSummary 
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{
+                    backgroundColor: expandedProvider === provider.id 
+                      ? alpha(theme.palette.primary.main, 0.04)
+                      : 'transparent',
+                    '&:hover': {
+                      backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                    },
+                  }}
+                >
                   <Box display="flex" alignItems="center" width="100%" pr={2}>
+                    <Box
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 2,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mr: 2,
+                      }}
+                    >
+                      <CloudIcon color="primary" />
+                    </Box>
                     <Box flex={1}>
-                      <Typography variant="h6">{provider.name}</Typography>
-                      <Typography variant="body2" color="textSecondary">
+                      <Typography variant="h6" fontWeight={600}>
+                        {provider.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
                         {provider.base_url}
                       </Typography>
                     </Box>
-                    <Box display="flex" alignItems="center" gap={2}>
+                    <Box display="flex" alignItems="center" gap={1}>
                       <Chip
                         icon={<KeyIcon />}
-                        label={`${providerApiKeys.length} API Key${providerApiKeys.length !== 1 ? 's' : ''}`}
+                        label={`${providerApiKeys.length} Key${providerApiKeys.length !== 1 ? 's' : ''}`}
                         size="small"
-                        color={providerApiKeys.length > 0 ? 'primary' : 'default'}
+                        sx={{
+                          backgroundColor: providerApiKeys.length > 0 
+                            ? alpha(theme.palette.success.main, 0.1)
+                            : alpha(theme.palette.grey[500], 0.1),
+                          color: providerApiKeys.length > 0 
+                            ? theme.palette.success.dark
+                            : theme.palette.text.secondary,
+                        }}
                       />
                       {provider.free_quota_type && (
                         <Chip
                           label={provider.free_quota_type.replace('_', ' ')}
                           size="small"
-                          color="secondary"
+                          sx={{
+                            backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                            color: theme.palette.secondary.dark,
+                          }}
                         />
                       )}
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleProviderOpen(provider)
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleProviderDelete(provider.id)
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      <Tooltip title="Edit Provider">
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleProviderOpen(provider)
+                          }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete Provider">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleProviderDelete(provider.id)
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </Box>
                 </AccordionSummary>
@@ -325,11 +530,20 @@ export default function ProvidersPage() {
                     </Box>
                     
                     {providerApiKeys.length === 0 ? (
-                      <Paper variant="outlined" sx={{ p: 2, textAlign: 'center' }}>
-                        <Typography variant="body2" color="textSecondary">
+                      <Box
+                        sx={{
+                          p: 3,
+                          textAlign: 'center',
+                          backgroundColor: alpha(theme.palette.grey[500], 0.04),
+                          borderRadius: 2,
+                          border: `1px dashed ${theme.palette.divider}`,
+                        }}
+                      >
+                        <KeyIcon sx={{ fontSize: 40, color: theme.palette.text.disabled, mb: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
                           No API keys configured for this provider
                         </Typography>
-                      </Paper>
+                      </Box>
                     ) : (
                       <Table size="small">
                         <TableHead>
@@ -374,8 +588,8 @@ export default function ProvidersPage() {
               </Accordion>
             )
           })}
-        </Box>
-      )}
+        </CardContent>
+      </Card>
 
       {/* Provider Dialog */}
       <Dialog open={providerOpen} onClose={handleProviderClose} maxWidth="sm" fullWidth>

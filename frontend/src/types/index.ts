@@ -12,6 +12,7 @@ export interface ApiKey {
   alias: string
   key: string
   sort_order: number
+  created_at: string
   provider?: Provider
 }
 
@@ -64,6 +65,7 @@ export interface FreeQuota {
 export interface UsageStats {
   total_tokens: number
   total_cost: number
+  request_count?: number
   date: string
   provider?: string
   model?: string
