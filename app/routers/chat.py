@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 
 from app.db.database import get_db
 from app.services import ModelService
+from app.services.concurrency_manager import get_concurrency_manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -47,8 +48,8 @@ async def chat_completions(
     # get the Model implementations
     implementations = db_model.implementations
 
-    # 使用新的方法获取最佳实现和API密钥
-    best_implementation, db_api_key = ModelService.get_best_implementation(db, implementations)
+    # 使用新的方法获取最佳实现和API密钥，考虑并发限制
+    best_implementation, db_api_key = await ModelService.get_best_implementation_with_concurrency(db, implementations)
     
     if not best_implementation or not db_api_key:
         # 如果找不到合适的实现或API密钥，返回错误
@@ -70,23 +71,31 @@ async def chat_completions(
     if stream:
         args["stream_options"] = {"include_usage": True}
     coversation_id = body.get("conversation_id", f"router-{uuid.uuid4()}")
-    completion = await client.chat.completions.create(**args)
-
+    
+    # Track the request with concurrency manager
+    concurrency_manager = get_concurrency_manager()
+    
     if stream:
-
+        # For streaming, we need to handle concurrency tracking differently
         async def stream_generator():
-            async for chunk in completion:
-                data = convert_chunk_to_response(chunk, model, coversation_id)
-                usage = data.get("usage")
-                if usage:
-                    ModelService.save_usage(db, db_api_key.id, best_implementation.id, usage)
-                
-                yield f"data: {json.dumps(data)}\n\n"
-            yield "data: [DONE]\n\n"
+            async with concurrency_manager.track_request(db_api_key.id):
+                completion = await client.chat.completions.create(**args)
+                async for chunk in completion:
+                    data = convert_chunk_to_response(chunk, model, coversation_id)
+                    usage = data.get("usage")
+                    if usage:
+                        ModelService.save_usage(db, db_api_key.id, best_implementation.id, usage)
+                    
+                    yield f"data: {json.dumps(data)}\n\n"
+                yield "data: [DONE]\n\n"
 
         return StreamingResponse(
             content=stream_generator(), media_type="text/event-stream"
         )
+    
+    # For non-streaming requests
+    async with concurrency_manager.track_request(db_api_key.id):
+        completion = await client.chat.completions.create(**args)
 
     logger.debug(f"Completion response: {completion}")
 

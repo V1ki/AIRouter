@@ -32,6 +32,7 @@ class ApiKeyBase(BaseModel):
     alias: str
     key: str
     sort_order: Optional[int] = 0
+    concurrency_limit: Optional[int] = None
 
 class ApiKeyCreate(ApiKeyBase):
     pass
@@ -40,6 +41,7 @@ class ApiKeyUpdate(BaseModel):
     alias: Optional[str] = None
     key: Optional[str] = None
     sort_order: Optional[int] = None
+    concurrency_limit: Optional[int] = None
 
 class ApiKeyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -49,6 +51,7 @@ class ApiKeyResponse(BaseModel):
     alias: str
     key: str
     sort_order: Optional[int] = 0
+    concurrency_limit: Optional[int] = None
 
 # Model schemas
 class ModelBase(BaseModel):

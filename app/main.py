@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from openai.types.model import Model
 import os
 
-from app.routers import models, chat, responses, management, pricing
+from app.routers import models, chat, responses, management, pricing, concurrency
 from app.agents.router import agents_router
 
 app = FastAPI(
@@ -39,6 +39,9 @@ app.include_router(management.router)
 
 # Include pricing router
 app.include_router(pricing.router, prefix="/api")
+
+# Include concurrency management router
+app.include_router(concurrency.router, prefix="/api")
 
 # Health check endpoint
 @app.get("/health")

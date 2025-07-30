@@ -55,6 +55,7 @@ class ApiKey(Base):
     alias = Column(String, nullable=False)
     key = Column(String, nullable=False)
     sort_order = Column(Integer, nullable=True, default=0)  # Add sort order field
+    concurrency_limit = Column(Integer, nullable=True, default=None)  # Custom concurrency limit for this key
     
     # Relationship back to provider
     provider = relationship("ModelProvider", back_populates="api_keys")

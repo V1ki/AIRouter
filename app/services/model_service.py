@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
+import asyncio
 from app.models.provider import Model as DBModel, ApiKeyUsage as DBApiKeyUsage, ModelImplementation, ApiKey, FreeQuota, FreeQuotaUsage
 
 class ModelService:
@@ -169,4 +170,41 @@ class ModelService:
                 return first_impl, api_keys[0]
         
         return best_implementation, best_api_key
+    
+    @staticmethod
+    async def get_best_implementation_with_concurrency(
+        db: Session, 
+        model_implementations: List[ModelImplementation],
+        check_concurrency: bool = True
+    ) -> Tuple[Optional[ModelImplementation], Optional[ApiKey]]:
+        """
+        获取最佳模型实现及其对应的API密钥，考虑并发限制
+        
+        This is an async version that checks concurrency limits if enabled.
+        Falls back to the original logic if concurrency checking is disabled.
+        
+        参数:
+            db: 数据库会话
+            model_implementations: 模型实现列表
+            check_concurrency: 是否检查并发限制
+            
+        返回:
+            tuple: (best_implementation, best_api_key)
+        """
+        if not check_concurrency:
+            # Use original synchronous method
+            return ModelService.get_best_implementation(db, model_implementations)
+        
+        # Import here to avoid circular dependency
+        from app.services.concurrency_manager import (
+            get_concurrency_manager, 
+            select_implementation_with_concurrency
+        )
+        
+        # Use concurrency-aware selection
+        return await select_implementation_with_concurrency(
+            db, 
+            model_implementations,
+            ModelService.get_best_implementation
+        )
         
