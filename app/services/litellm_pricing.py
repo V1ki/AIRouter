@@ -326,3 +326,110 @@ def get_litellm_price_for_model(provider_model_id: str, provider_name: Optional[
         result["litellm_provider"] = entry.get("litellm_provider")
 
     return result
+
+
+# Reverse mapping: LiteLLM provider name -> our provider names
+_LITELLM_PROVIDER_TO_OUR_PROVIDER = {
+    "openai": ["OpenAI"],
+    "anthropic": ["Anthropic"],
+    "vertex_ai-language-models": ["Google AI"],
+    "vertex_ai-chat-models": ["Google AI"],
+    "gemini": ["Google AI"],
+    "deepseek": ["DeepSeek"],
+    "dashscope": ["阿里云百炼"],
+    "zhipu": ["智谱AI"],
+    "moonshot": ["Moonshot"],
+    "azure": ["Azure OpenAI"],
+    "azure_ai": ["Azure OpenAI"],
+    "volcengine": ["字节跳动"],
+}
+
+
+def search_litellm_models(
+    search: str = "",
+    provider_name: Optional[str] = None,
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """
+    Search available models from LiteLLM's pricing database.
+
+    Used by the frontend to populate autocomplete for model selection.
+
+    Args:
+        search: Search query to filter models by ID
+        provider_name: Optional provider name to filter relevant models
+        limit: Maximum number of results
+
+    Returns:
+        List of model entries with id, pricing, and metadata
+    """
+    model_cost = _get_model_cost()
+    results = []
+
+    # Determine which LiteLLM keys are relevant for this provider
+    prefixes = None
+    if provider_name:
+        prefixes = PROVIDER_PREFIX_MAP.get(provider_name)
+
+    search_lower = search.lower()
+
+    for key, entry in model_cost.items():
+        # Filter by provider if specified
+        if prefixes is not None:
+            matched = False
+            for prefix in prefixes:
+                if prefix == "":
+                    # For empty prefix, check litellm_provider field
+                    litellm_prov = entry.get("litellm_provider", "")
+                    # Check if litellm_provider maps to our provider
+                    our_providers = _LITELLM_PROVIDER_TO_OUR_PROVIDER.get(litellm_prov, [])
+                    if provider_name in our_providers:
+                        matched = True
+                        break
+                    # Also match if key has no "/" (top-level model, likely matching)
+                    if "/" not in key and litellm_prov and provider_name in _LITELLM_PROVIDER_TO_OUR_PROVIDER.get(litellm_prov, []):
+                        matched = True
+                        break
+                else:
+                    if key.startswith(prefix):
+                        matched = True
+                        break
+            if not matched:
+                continue
+
+        # Filter by search query
+        if search_lower and search_lower not in key.lower():
+            continue
+
+        pricing = _extract_pricing(entry)
+        if not pricing:
+            continue
+
+        # Extract the actual model ID (strip provider prefix for display)
+        display_id = key
+        if prefixes:
+            for prefix in prefixes:
+                if prefix and key.startswith(prefix):
+                    display_id = key[len(prefix):]
+                    break
+
+        results.append({
+            "litellm_key": key,
+            "model_id": display_id,
+            "input_price": round(pricing["input_price"], 6),
+            "output_price": round(pricing["output_price"], 6),
+            "max_tokens": entry.get("max_tokens"),
+            "max_input_tokens": entry.get("max_input_tokens"),
+            "litellm_provider": entry.get("litellm_provider"),
+        })
+
+        if len(results) >= limit:
+            break
+
+    # Sort: exact matches first, then by key length (shorter = more canonical)
+    results.sort(key=lambda x: (
+        0 if x["model_id"].lower() == search_lower else 1,
+        len(x["model_id"]),
+    ))
+
+    return results

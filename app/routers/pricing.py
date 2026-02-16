@@ -15,6 +15,7 @@ from app.services.litellm_pricing import (
     preview_sync,
     sync_prices_from_litellm,
     get_litellm_price_for_model,
+    search_litellm_models,
 )
 from pydantic import BaseModel
 
@@ -268,4 +269,23 @@ def lookup_litellm_price(
         "provider_model_id": provider_model_id,
         "provider_name": provider_name,
         "pricing": result,
+    }
+
+
+@router.get("/litellm/models")
+def list_litellm_models(
+    search: str = Query("", description="Search query to filter model IDs"),
+    provider_name: Optional[str] = Query(None, description="Filter by provider name"),
+    limit: int = Query(50, description="Maximum number of results", ge=1, le=200),
+):
+    """
+    Search available models from LiteLLM's pricing database.
+
+    Used by the frontend to populate autocomplete for model selection.
+    Returns model IDs with pricing info for the given provider/search query.
+    """
+    results = search_litellm_models(search=search, provider_name=provider_name, limit=limit)
+    return {
+        "count": len(results),
+        "models": results,
     }
