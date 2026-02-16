@@ -5,6 +5,7 @@ uuid>=1.30
 fastapi>=0.115.12
 uvicorn
 openai
+litellm
 tabulate
 pytz
 tzlocal

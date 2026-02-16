@@ -2,14 +2,23 @@
 Pricing management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from datetime import datetime
 
 from app.db.database import get_db
 from app.models.provider import ModelImplementation
+from app.services.litellm_pricing import (
+    lookup_model_price,
+    preview_sync,
+    sync_prices_from_litellm,
+    get_litellm_price_for_model,
+)
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pricing", tags=["pricing"])
 
@@ -181,5 +190,82 @@ def get_price_comparison(
     # Sort by price within each family
     for family in results:
         results[family].sort(key=lambda x: x['input_price'])
-    
+
     return results
+
+
+# ==================== LiteLLM Pricing Endpoints ====================
+
+@router.get("/litellm/preview")
+def preview_litellm_sync(
+    db: Session = Depends(get_db)
+):
+    """
+    Preview what prices would change if synced from LiteLLM.
+
+    Returns a list of all model implementations with their current prices
+    and what LiteLLM would set them to, without making any changes.
+    """
+    results = preview_sync(db)
+
+    matched = [r for r in results if r["has_litellm_price"]]
+    changed = [r for r in results if r["price_changed"]]
+    not_found = [r for r in results if not r["has_litellm_price"]]
+
+    return {
+        "total_models": len(results),
+        "matched_in_litellm": len(matched),
+        "would_change": len(changed),
+        "not_found_in_litellm": len(not_found),
+        "details": results,
+    }
+
+
+@router.post("/litellm/sync")
+def sync_from_litellm(
+    only_missing: bool = Query(False, description="Only update models without existing pricing"),
+    provider: Optional[str] = Query(None, description="Filter by provider name"),
+    db: Session = Depends(get_db)
+):
+    """
+    Sync model prices from LiteLLM's pricing database.
+
+    LiteLLM maintains pricing data for 2500+ models. This endpoint updates
+    the pricing_info for all matching model implementations.
+
+    Query parameters:
+    - only_missing: If true, only fills in prices for models that don't have any yet
+    - provider: Optional provider name to limit sync to a specific provider
+    """
+    result = sync_prices_from_litellm(db, only_missing=only_missing, provider_filter=provider)
+    logger.info(
+        f"LiteLLM pricing sync: updated={result['updated_count']}, "
+        f"skipped={result['skipped_count']}, not_found={result['not_found_count']}"
+    )
+    return result
+
+
+@router.get("/litellm/lookup/{provider_model_id:path}")
+def lookup_litellm_price(
+    provider_model_id: str,
+    provider_name: Optional[str] = Query(None, description="Provider name for better matching"),
+):
+    """
+    Look up a single model's pricing from LiteLLM.
+
+    Useful for checking pricing before adding a new model implementation.
+    Does not modify any data.
+    """
+    result = get_litellm_price_for_model(provider_model_id, provider_name)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model '{provider_model_id}' not found in LiteLLM pricing database"
+        )
+
+    return {
+        "provider_model_id": provider_model_id,
+        "provider_name": provider_name,
+        "pricing": result,
+    }
