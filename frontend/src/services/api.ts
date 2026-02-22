@@ -99,6 +99,47 @@ export const modelImplementationService = {
   },
 }
 
+export interface LiteLLMModelOption {
+  litellm_key: string
+  model_id: string
+  input_price: number
+  output_price: number
+  max_tokens?: number
+  max_input_tokens?: number
+  litellm_provider?: string
+}
+
+export const pricingService = {
+  searchLiteLLMModels: async (params: {
+    search?: string
+    provider_name?: string
+    limit?: number
+  }): Promise<{ count: number; models: LiteLLMModelOption[] }> => {
+    const { data } = await api.get('/pricing/litellm/models', { params })
+    return data
+  },
+
+  lookupLiteLLMPrice: async (
+    providerModelId: string,
+    providerName?: string
+  ): Promise<{
+    provider_model_id: string
+    provider_name?: string
+    pricing: {
+      input_price: number
+      output_price: number
+      max_tokens?: number
+      max_input_tokens?: number
+      litellm_provider?: string
+    }
+  }> => {
+    const { data } = await api.get(`/pricing/litellm/lookup/${encodeURIComponent(providerModelId)}`, {
+      params: providerName ? { provider_name: providerName } : undefined,
+    })
+    return data
+  },
+}
+
 export const usageService = {
   getStats: async (params?: {
     start_date?: string

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Box,
@@ -16,14 +16,7 @@ import {
   MenuItem,
   FormControlLabel,
   Switch,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
+  Autocomplete,
   Card,
   CardContent,
   Grid,
@@ -32,12 +25,12 @@ import {
   Tooltip,
   InputAdornment,
   Collapse,
+  CircularProgress,
 } from '@mui/material'
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ExpandMore as ExpandMoreIcon,
   Settings as SettingsIcon,
   ModelTraining as ModelIcon,
   Search as SearchIcon,
@@ -45,8 +38,10 @@ import {
   Memory as MemoryIcon,
   CheckCircle as CheckIcon,
   Cancel as CancelIcon,
+  AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material'
-import { modelService, modelImplementationService, providerService } from '../services/api'
+import { modelService, modelImplementationService, providerService, pricingService } from '../services/api'
+import type { LiteLLMModelOption } from '../services/api'
 import { PageHeader } from '../components/PageHeader'
 import { EmptyState } from '../components/EmptyState'
 import { ModelCard } from '../components/ModelCard'
@@ -101,6 +96,13 @@ export default function ModelsPage() {
   const [capabilityInput, setCapabilityInput] = useState('')
   const [expandedModel, setExpandedModel] = useState<string | null>(null)
 
+  // LiteLLM autocomplete state
+  const [litellmOptions, setLitellmOptions] = useState<LiteLLMModelOption[]>([])
+  const [litellmLoading, setLitellmLoading] = useState(false)
+  const [litellmInputValue, setLitellmInputValue] = useState('')
+  const [pricingSource, setPricingSource] = useState<'litellm' | 'manual' | null>(null)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const { data: models = [], isLoading: modelsLoading } = useQuery({
     queryKey: ['models'],
     queryFn: modelService.getAll,
@@ -115,6 +117,56 @@ export default function ModelsPage() {
     queryKey: ['providers'],
     queryFn: providerService.getAll,
   })
+
+  // Get the selected provider name for LiteLLM filtering
+  const selectedProviderName = providers.find(p => p.id === implFormData.provider_id)?.name
+
+  // Fetch LiteLLM models with debounce
+  const fetchLitellmModels = useCallback(async (search: string, providerName?: string) => {
+    if (!search && !providerName) {
+      setLitellmOptions([])
+      return
+    }
+    setLitellmLoading(true)
+    try {
+      const result = await pricingService.searchLiteLLMModels({
+        search: search || undefined,
+        provider_name: providerName || undefined,
+        limit: 50,
+      })
+      setLitellmOptions(result.models)
+    } catch {
+      setLitellmOptions([])
+    } finally {
+      setLitellmLoading(false)
+    }
+  }, [])
+
+  // Debounced search as user types
+  useEffect(() => {
+    if (!implOpen || editingImpl) return
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      fetchLitellmModels(litellmInputValue, selectedProviderName)
+    }, 300)
+
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+    }
+  }, [litellmInputValue, selectedProviderName, implOpen, editingImpl, fetchLitellmModels])
+
+  // Load initial options when provider changes (and dialog is open for new impl)
+  useEffect(() => {
+    if (implOpen && !editingImpl && selectedProviderName) {
+      fetchLitellmModels('', selectedProviderName)
+    }
+  }, [selectedProviderName, implOpen, editingImpl, fetchLitellmModels])
 
   const createModelMutation = useMutation({
     mutationFn: modelService.create,
@@ -234,6 +286,8 @@ export default function ModelsPage() {
         is_available: impl.is_available,
         sort_order: impl.sort_order || 0,
       })
+      setLitellmInputValue(impl.provider_model_id)
+      setPricingSource(null)
     } else {
       setEditingImpl(null)
       setImplFormData({
@@ -246,7 +300,10 @@ export default function ModelsPage() {
         is_available: true,
         sort_order: 0,
       })
+      setLitellmInputValue('')
+      setPricingSource(null)
     }
+    setLitellmOptions([])
     setError(null)
     setImplOpen(true)
   }
@@ -255,6 +312,9 @@ export default function ModelsPage() {
     setImplOpen(false)
     setEditingImpl(null)
     setError(null)
+    setLitellmOptions([])
+    setLitellmInputValue('')
+    setPricingSource(null)
   }
 
   const handleImplSubmit = () => {
@@ -272,6 +332,34 @@ export default function ModelsPage() {
     if (window.confirm('Delete this implementation?')) {
       deleteImplMutation.mutate(id)
     }
+  }
+
+  // Handle LiteLLM model selection from autocomplete
+  const handleLitellmModelSelect = (_: any, value: LiteLLMModelOption | string | null) => {
+    if (!value) {
+      setImplFormData(prev => ({ ...prev, provider_model_id: '' }))
+      setPricingSource(null)
+      return
+    }
+
+    if (typeof value === 'string') {
+      // User typed a custom value (freeSolo)
+      setImplFormData(prev => ({ ...prev, provider_model_id: value }))
+      setPricingSource('manual')
+      return
+    }
+
+    // User selected from LiteLLM options - auto-populate fields
+    setImplFormData(prev => ({
+      ...prev,
+      provider_model_id: value.model_id,
+      pricing_info: {
+        input_price: value.input_price,
+        output_price: value.output_price,
+      },
+      context_window: value.max_input_tokens || prev.context_window,
+    }))
+    setPricingSource('litellm')
   }
 
   const addCapability = () => {
@@ -374,7 +462,7 @@ export default function ModelsPage() {
         {filteredModels.map((model) => {
           const modelImplementations = getModelImplementations(model.id)
           const availableImplementations = modelImplementations.filter(impl => impl.is_available)
-          
+
           return (
             <Grid item xs={12} key={model.id}>
               <Box>
@@ -390,7 +478,7 @@ export default function ModelsPage() {
                   onDelete={() => handleModelDelete(model.id)}
                   onClick={() => handleAccordionChange(model.id)(null as any, expandedModel !== model.id)}
                 />
-                
+
                 <Collapse in={expandedModel === model.id}>
                   <Card sx={{ mt: 2, ml: 7, border: `1px solid ${theme.palette.divider}` }}>
                     <CardContent>
@@ -407,7 +495,7 @@ export default function ModelsPage() {
                           Add Implementation
                         </Button>
                       </Box>
-                    
+
                       {modelImplementations.length === 0 ? (
                         <Box
                           sx={{
@@ -433,8 +521,8 @@ export default function ModelsPage() {
                                   sx={{
                                     p: 2,
                                     border: `1px solid ${impl.is_available ? theme.palette.success.light : theme.palette.divider}`,
-                                    backgroundColor: impl.is_available 
-                                      ? alpha(theme.palette.success.main, 0.04) 
+                                    backgroundColor: impl.is_available
+                                      ? alpha(theme.palette.success.main, 0.04)
                                       : theme.palette.background.paper,
                                   }}
                                 >
@@ -443,9 +531,9 @@ export default function ModelsPage() {
                                       <Typography variant="subtitle1" fontWeight={600}>
                                         {provider?.name || 'Unknown'}
                                       </Typography>
-                                      <Typography 
-                                        variant="body2" 
-                                        sx={{ 
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
                                           fontFamily: 'monospace',
                                           color: theme.palette.text.secondary,
                                         }}
@@ -473,7 +561,7 @@ export default function ModelsPage() {
                                       </Tooltip>
                                     </Box>
                                   </Box>
-                                  
+
                                   <Box display="flex" gap={2} mb={1}>
                                     {impl.context_window && (
                                       <Box display="flex" alignItems="center" gap={0.5}>
@@ -489,12 +577,12 @@ export default function ModelsPage() {
                                       </Typography>
                                     )}
                                   </Box>
-                                  
+
                                   {(impl.pricing_info?.input_price || impl.pricing_info?.output_price) && (
-                                    <Box 
-                                      sx={{ 
-                                        mt: 1, 
-                                        p: 1, 
+                                    <Box
+                                      sx={{
+                                        mt: 1,
+                                        p: 1,
                                         backgroundColor: alpha(theme.palette.info.main, 0.08),
                                         borderRadius: 1,
                                       }}
@@ -506,12 +594,12 @@ export default function ModelsPage() {
                                         </Typography>
                                       </Box>
                                       <Box display="flex" gap={2}>
-                                        {impl.pricing_info?.input_price && (
+                                        {impl.pricing_info?.input_price != null && (
                                           <Typography variant="caption">
                                             Input: ${impl.pricing_info.input_price}
                                           </Typography>
                                         )}
-                                        {impl.pricing_info?.output_price && (
+                                        {impl.pricing_info?.output_price != null && (
                                           <Typography variant="caption">
                                             Output: ${impl.pricing_info.output_price}
                                           </Typography>
@@ -519,7 +607,7 @@ export default function ModelsPage() {
                                       </Box>
                                     </Box>
                                   )}
-                                  
+
                                   <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
                                     <Chip
                                       label={impl.is_available ? 'Available' : 'Unavailable'}
@@ -619,27 +707,129 @@ export default function ModelsPage() {
         <DialogTitle>{editingImpl ? 'Edit Implementation' : 'Add Implementation'}</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+          {/* Provider Select */}
           <TextField
             select
             margin="dense"
             label="Provider"
             fullWidth
             value={implFormData.provider_id}
-            onChange={(e) => setImplFormData({ ...implFormData, provider_id: e.target.value })}
+            onChange={(e) => {
+              setImplFormData({ ...implFormData, provider_id: e.target.value })
+              // Reset pricing source when provider changes
+              if (!editingImpl) {
+                setPricingSource(null)
+              }
+            }}
             sx={{ mb: 2 }}
           >
             {providers.map((provider) => (
               <MenuItem key={provider.id} value={provider.id}>{provider.name}</MenuItem>
             ))}
           </TextField>
-          <TextField
-            margin="dense"
-            label="Provider Model ID"
-            fullWidth
-            value={implFormData.provider_model_id}
-            onChange={(e) => setImplFormData({ ...implFormData, provider_model_id: e.target.value })}
-            sx={{ mb: 2 }}
-          />
+
+          {/* Provider Model ID - Autocomplete with LiteLLM for new, TextField for edit */}
+          {editingImpl ? (
+            <TextField
+              margin="dense"
+              label="Provider Model ID"
+              fullWidth
+              value={implFormData.provider_model_id}
+              onChange={(e) => setImplFormData({ ...implFormData, provider_model_id: e.target.value })}
+              sx={{ mb: 2 }}
+            />
+          ) : (
+            <Autocomplete
+              freeSolo
+              options={litellmOptions}
+              getOptionLabel={(option) => {
+                if (typeof option === 'string') return option
+                return option.model_id
+              }}
+              inputValue={litellmInputValue}
+              onInputChange={(_, newInputValue) => {
+                setLitellmInputValue(newInputValue)
+              }}
+              onChange={handleLitellmModelSelect}
+              loading={litellmLoading}
+              filterOptions={(x) => x} // Disable built-in filtering, use server-side
+              renderOption={(props, option) => {
+                if (typeof option === 'string') return null
+                return (
+                  <li {...props} key={option.litellm_key}>
+                    <Box sx={{ width: '100%' }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="body2" fontWeight={600} sx={{ fontFamily: 'monospace' }}>
+                          {option.model_id}
+                        </Typography>
+                        {option.max_input_tokens && (
+                          <Chip
+                            label={`${Math.round(option.max_input_tokens / 1000)}K`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                          />
+                        )}
+                      </Box>
+                      <Box display="flex" gap={2} mt={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          In: ${option.input_price}/1M
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Out: ${option.output_price}/1M
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </li>
+                )
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  margin="dense"
+                  label="Provider Model ID"
+                  fullWidth
+                  placeholder={implFormData.provider_id ? "Search LiteLLM models or type custom ID..." : "Select a provider first..."}
+                  helperText={
+                    implFormData.provider_id
+                      ? "Type to search from LiteLLM's 2500+ models, or enter a custom model ID"
+                      : "Please select a provider first to see available models"
+                  }
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {litellmLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                  sx={{ mb: 2 }}
+                />
+              )}
+              noOptionsText={
+                !implFormData.provider_id
+                  ? "Please select a provider first"
+                  : litellmInputValue
+                    ? "No matching models found - you can still use this as a custom ID"
+                    : "Type to search models..."
+              }
+              sx={{ mb: 0 }}
+            />
+          )}
+
+          {/* LiteLLM pricing indicator */}
+          {pricingSource === 'litellm' && (
+            <Alert
+              severity="success"
+              icon={<AutoAwesomeIcon fontSize="small" />}
+              sx={{ mb: 2 }}
+            >
+              Pricing and context window auto-filled from LiteLLM. You can still adjust the values below.
+            </Alert>
+          )}
+
           <TextField
             margin="dense"
             label="Version"
@@ -662,11 +852,17 @@ export default function ModelsPage() {
             label="Input Price (per 1M tokens)"
             fullWidth
             type="number"
-            value={implFormData.pricing_info.input_price || ''}
-            onChange={(e) => setImplFormData({
-              ...implFormData,
-              pricing_info: { ...implFormData.pricing_info, input_price: parseFloat(e.target.value) || undefined }
-            })}
+            value={implFormData.pricing_info.input_price ?? ''}
+            onChange={(e) => {
+              setImplFormData({
+                ...implFormData,
+                pricing_info: { ...implFormData.pricing_info, input_price: parseFloat(e.target.value) || undefined }
+              })
+              if (pricingSource === 'litellm') setPricingSource('manual')
+            }}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">$</InputAdornment>,
+            }}
             sx={{ mb: 2 }}
           />
           <TextField
@@ -674,11 +870,17 @@ export default function ModelsPage() {
             label="Output Price (per 1M tokens)"
             fullWidth
             type="number"
-            value={implFormData.pricing_info.output_price || ''}
-            onChange={(e) => setImplFormData({
-              ...implFormData,
-              pricing_info: { ...implFormData.pricing_info, output_price: parseFloat(e.target.value) || undefined }
-            })}
+            value={implFormData.pricing_info.output_price ?? ''}
+            onChange={(e) => {
+              setImplFormData({
+                ...implFormData,
+                pricing_info: { ...implFormData.pricing_info, output_price: parseFloat(e.target.value) || undefined }
+              })
+              if (pricingSource === 'litellm') setPricingSource('manual')
+            }}
+            InputProps={{
+              startAdornment: <InputAdornment position="start">$</InputAdornment>,
+            }}
             sx={{ mb: 2 }}
           />
           <TextField

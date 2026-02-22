@@ -111,10 +111,30 @@ def init_common_providers():
                 if existing_impl:
                     print(f"Implementation for '{model_name}' on '{provider_name}' already exists, skipping...")
                 else:
-                    pricing_info = {
-                        "input_price": impl_data['pricing']['input'],
-                        "output_price": impl_data['pricing']['output']
-                    }
+                    # Try to get pricing from LiteLLM first, fall back to config
+                    pricing_info = None
+                    try:
+                        from app.services.litellm_pricing import lookup_model_price
+                        litellm_price = lookup_model_price(
+                            impl_data['provider_model_id'],
+                            provider_name
+                        )
+                        if litellm_price:
+                            pricing_info = {
+                                "input_price": round(litellm_price["input_price"], 6),
+                                "output_price": round(litellm_price["output_price"], 6),
+                                "updated_by": "litellm",
+                            }
+                            print(f"  -> Using LiteLLM pricing for {impl_data['provider_model_id']}")
+                    except Exception as e:
+                        print(f"  -> LiteLLM pricing lookup failed: {e}")
+
+                    if not pricing_info:
+                        pricing_info = {
+                            "input_price": impl_data['pricing']['input'],
+                            "output_price": impl_data['pricing']['output'],
+                            "updated_by": "config",
+                        }
                     
                     implementation = ModelImplementation(
                         provider_id=providers[provider_name].id,
