@@ -57,24 +57,52 @@ export const apiKeyService = {
   },
 }
 
+export interface ModelQuickAddRequest {
+  name: string
+  description?: string
+  capabilities: string[]
+  family: string
+  provider_id: string
+  provider_model_id: string
+  version?: string
+  context_window?: number
+  pricing_info?: {
+    input_price?: number
+    output_price?: number
+  }
+  is_available: boolean
+  sort_order: number
+}
+
+export interface ModelQuickAddResponse {
+  model: Model
+  implementation: ModelImplementation
+  model_existed: boolean
+}
+
 export const modelService = {
   getAll: async (): Promise<Model[]> => {
     const { data } = await api.get('/models')
     return data
   },
-  
+
   create: async (model: Omit<Model, 'id'>): Promise<Model> => {
     const { data } = await api.post('/models', model)
     return data
   },
-  
+
   update: async (id: string, model: Partial<Model>): Promise<Model> => {
     const { data } = await api.put(`/models/${id}`, model)
     return data
   },
-  
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/models/${id}`)
+  },
+
+  quickAdd: async (request: ModelQuickAddRequest): Promise<ModelQuickAddResponse> => {
+    const { data } = await api.post('/models/quick-add', request)
+    return data
   },
 }
 

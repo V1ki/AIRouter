@@ -107,6 +107,33 @@ class ModelImplementationResponse(ModelImplementationBase):
     
     id: UUID
 
+# Quick-add model schema (creates Model + first Implementation atomically)
+class ModelQuickAddRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    # Model fields
+    name: str
+    description: Optional[str] = None
+    capabilities: List[str] = []
+    family: str
+
+    # Implementation fields
+    provider_id: UUID
+    provider_model_id: str
+    version: Optional[str] = None
+    context_window: Optional[int] = None
+    pricing_info: Optional[Dict[str, Any]] = None
+    is_available: bool = True
+    sort_order: int = 0
+
+
+class ModelQuickAddResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=(), from_attributes=True)
+
+    model: ModelResponse
+    implementation: ModelImplementationResponse
+
+
 # Usage statistics schemas - removed UsageStatsResponse since we return array directly
 
 class UsageResponse(BaseModel):

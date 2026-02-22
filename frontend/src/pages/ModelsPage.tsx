@@ -26,6 +26,9 @@ import {
   InputAdornment,
   Collapse,
   CircularProgress,
+  Tabs,
+  Tab,
+  Divider,
 } from '@mui/material'
 import {
   Add as AddIcon,
@@ -39,6 +42,8 @@ import {
   CheckCircle as CheckIcon,
   Cancel as CancelIcon,
   AutoAwesome as AutoAwesomeIcon,
+  CloudDownload as CloudDownloadIcon,
+  Create as CreateIcon,
 } from '@mui/icons-material'
 import { modelService, modelImplementationService, providerService, pricingService } from '../services/api'
 import type { LiteLLMModelOption } from '../services/api'
@@ -59,6 +64,22 @@ interface ImplementationFormData {
   model_id: string
   provider_model_id: string
   version: string
+  context_window: number
+  pricing_info: {
+    input_price?: number
+    output_price?: number
+  }
+  is_available: boolean
+  sort_order: number
+}
+
+interface QuickAddFormData {
+  name: string
+  description: string
+  capabilities: string[]
+  family: string
+  provider_id: string
+  provider_model_id: string
   context_window: number
   pricing_info: {
     input_price?: number
@@ -96,7 +117,32 @@ export default function ModelsPage() {
   const [capabilityInput, setCapabilityInput] = useState('')
   const [expandedModel, setExpandedModel] = useState<string | null>(null)
 
-  // LiteLLM autocomplete state
+  // Model dialog tab state: 0 = LiteLLM Select, 1 = Manual
+  const [modelDialogTab, setModelDialogTab] = useState(0)
+
+  // Quick-add form state (LiteLLM tab)
+  const [quickAddFormData, setQuickAddFormData] = useState<QuickAddFormData>({
+    name: '',
+    description: '',
+    capabilities: [],
+    family: '',
+    provider_id: '',
+    provider_model_id: '',
+    context_window: 4096,
+    pricing_info: {},
+    is_available: true,
+    sort_order: 0,
+  })
+  const [quickAddCapabilityInput, setQuickAddCapabilityInput] = useState('')
+
+  // LiteLLM autocomplete state for model dialog (quick-add)
+  const [modelLitellmOptions, setModelLitellmOptions] = useState<LiteLLMModelOption[]>([])
+  const [modelLitellmLoading, setModelLitellmLoading] = useState(false)
+  const [modelLitellmInputValue, setModelLitellmInputValue] = useState('')
+  const [modelPricingSource, setModelPricingSource] = useState<'litellm' | 'manual' | null>(null)
+  const modelDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // LiteLLM autocomplete state for implementation dialog
   const [litellmOptions, setLitellmOptions] = useState<LiteLLMModelOption[]>([])
   const [litellmLoading, setLitellmLoading] = useState(false)
   const [litellmInputValue, setLitellmInputValue] = useState('')
@@ -168,6 +214,56 @@ export default function ModelsPage() {
     }
   }, [selectedProviderName, implOpen, editingImpl, fetchLitellmModels])
 
+  // Get selected provider name for quick-add LiteLLM filtering
+  const quickAddProviderName = providers.find(p => p.id === quickAddFormData.provider_id)?.name
+
+  // Fetch LiteLLM models for the quick-add model dialog
+  const fetchModelLitellmModels = useCallback(async (search: string, providerName?: string) => {
+    if (!search && !providerName) {
+      setModelLitellmOptions([])
+      return
+    }
+    setModelLitellmLoading(true)
+    try {
+      const result = await pricingService.searchLiteLLMModels({
+        search: search || undefined,
+        provider_name: providerName || undefined,
+        limit: 50,
+      })
+      setModelLitellmOptions(result.models)
+    } catch {
+      setModelLitellmOptions([])
+    } finally {
+      setModelLitellmLoading(false)
+    }
+  }, [])
+
+  // Debounced search for model dialog LiteLLM autocomplete
+  useEffect(() => {
+    if (!modelOpen || editingModel || modelDialogTab !== 0) return
+
+    if (modelDebounceTimer.current) {
+      clearTimeout(modelDebounceTimer.current)
+    }
+
+    modelDebounceTimer.current = setTimeout(() => {
+      fetchModelLitellmModels(modelLitellmInputValue, quickAddProviderName)
+    }, 300)
+
+    return () => {
+      if (modelDebounceTimer.current) {
+        clearTimeout(modelDebounceTimer.current)
+      }
+    }
+  }, [modelLitellmInputValue, quickAddProviderName, modelOpen, editingModel, modelDialogTab, fetchModelLitellmModels])
+
+  // Load initial options when provider changes in quick-add
+  useEffect(() => {
+    if (modelOpen && !editingModel && modelDialogTab === 0 && quickAddProviderName) {
+      fetchModelLitellmModels('', quickAddProviderName)
+    }
+  }, [quickAddProviderName, modelOpen, editingModel, modelDialogTab, fetchModelLitellmModels])
+
   const createModelMutation = useMutation({
     mutationFn: modelService.create,
     onSuccess: () => {
@@ -195,6 +291,18 @@ export default function ModelsPage() {
     mutationFn: modelService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['models'] })
+    },
+  })
+
+  const quickAddMutation = useMutation({
+    mutationFn: modelService.quickAdd,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['models'] })
+      queryClient.invalidateQueries({ queryKey: ['implementations'] })
+      handleModelClose()
+    },
+    onError: (error: any) => {
+      setError(error.response?.data?.detail || 'Failed to quick-add model')
     },
   })
 
@@ -237,6 +345,8 @@ export default function ModelsPage() {
         capabilities: model.capabilities,
         family: model.family,
       })
+      // When editing, always show manual tab
+      setModelDialogTab(1)
     } else {
       setEditingModel(null)
       setModelFormData({
@@ -245,6 +355,25 @@ export default function ModelsPage() {
         capabilities: [],
         family: '',
       })
+      // Default to LiteLLM tab for new models
+      setModelDialogTab(0)
+      // Reset quick-add form
+      setQuickAddFormData({
+        name: '',
+        description: '',
+        capabilities: [],
+        family: '',
+        provider_id: '',
+        provider_model_id: '',
+        context_window: 4096,
+        pricing_info: {},
+        is_available: true,
+        sort_order: 0,
+      })
+      setQuickAddCapabilityInput('')
+      setModelLitellmInputValue('')
+      setModelLitellmOptions([])
+      setModelPricingSource(null)
     }
     setError(null)
     setModelOpen(true)
@@ -254,6 +383,9 @@ export default function ModelsPage() {
     setModelOpen(false)
     setEditingModel(null)
     setError(null)
+    setModelLitellmOptions([])
+    setModelLitellmInputValue('')
+    setModelPricingSource(null)
   }
 
   const handleModelSubmit = () => {
@@ -262,9 +394,77 @@ export default function ModelsPage() {
         id: editingModel.id,
         data: modelFormData,
       })
+    } else if (modelDialogTab === 0) {
+      // Quick-add from LiteLLM
+      quickAddMutation.mutate({
+        name: quickAddFormData.name,
+        description: quickAddFormData.description || undefined,
+        capabilities: quickAddFormData.capabilities,
+        family: quickAddFormData.family,
+        provider_id: quickAddFormData.provider_id,
+        provider_model_id: quickAddFormData.provider_model_id,
+        context_window: quickAddFormData.context_window,
+        pricing_info: quickAddFormData.pricing_info,
+        is_available: quickAddFormData.is_available,
+        sort_order: quickAddFormData.sort_order,
+      })
     } else {
       createModelMutation.mutate(modelFormData)
     }
+  }
+
+  // Handle LiteLLM model selection in the quick-add tab
+  const handleQuickAddLitellmSelect = (_: any, value: LiteLLMModelOption | string | null) => {
+    if (!value) {
+      setQuickAddFormData(prev => ({ ...prev, provider_model_id: '', name: '', family: '' }))
+      setModelPricingSource(null)
+      return
+    }
+
+    if (typeof value === 'string') {
+      setQuickAddFormData(prev => ({ ...prev, provider_model_id: value }))
+      setModelPricingSource('manual')
+      return
+    }
+
+    // Derive a display name and family from the LiteLLM model
+    const modelId = value.model_id
+    // Try to derive a human-readable name: e.g. "gpt-4o" -> "GPT-4o"
+    const displayName = modelId
+    // Try to derive family from litellm_provider or model prefix
+    const family = value.litellm_provider
+      ? value.litellm_provider.charAt(0).toUpperCase() + value.litellm_provider.slice(1)
+      : modelId.split('-')[0].toUpperCase()
+
+    setQuickAddFormData(prev => ({
+      ...prev,
+      provider_model_id: modelId,
+      name: displayName,
+      family: family,
+      pricing_info: {
+        input_price: value.input_price,
+        output_price: value.output_price,
+      },
+      context_window: value.max_input_tokens || prev.context_window,
+    }))
+    setModelPricingSource('litellm')
+  }
+
+  const addQuickAddCapability = () => {
+    if (quickAddCapabilityInput && !quickAddFormData.capabilities.includes(quickAddCapabilityInput)) {
+      setQuickAddFormData({
+        ...quickAddFormData,
+        capabilities: [...quickAddFormData.capabilities, quickAddCapabilityInput],
+      })
+      setQuickAddCapabilityInput('')
+    }
+  }
+
+  const removeQuickAddCapability = (cap: string) => {
+    setQuickAddFormData({
+      ...quickAddFormData,
+      capabilities: quickAddFormData.capabilities.filter(c => c !== cap),
+    })
   }
 
   const handleModelDelete = (id: string) => {
@@ -635,69 +835,362 @@ export default function ModelsPage() {
       </Grid>
 
       {/* Model Dialog */}
-      <Dialog open={modelOpen} onClose={handleModelClose} maxWidth="sm" fullWidth>
+      <Dialog open={modelOpen} onClose={handleModelClose} maxWidth="md" fullWidth>
         <DialogTitle>{editingModel ? 'Edit Model' : 'Add Model'}</DialogTitle>
         <DialogContent>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          <TextField
-            margin="dense"
-            label="Name"
-            fullWidth
-            value={modelFormData.name}
-            onChange={(e) => setModelFormData({ ...modelFormData, name: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Family"
-            fullWidth
-            value={modelFormData.family}
-            onChange={(e) => setModelFormData({ ...modelFormData, family: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            label="Description"
-            fullWidth
-            multiline
-            rows={2}
-            value={modelFormData.description}
-            onChange={(e) => setModelFormData({ ...modelFormData, description: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <Box mb={2}>
-            <Typography variant="subtitle2" gutterBottom>Capabilities</Typography>
-            <Box display="flex" gap={1} mb={1}>
-              <TextField
-                size="small"
-                value={capabilityInput}
-                onChange={(e) => setCapabilityInput(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addCapability()
-                  }
-                }}
-                placeholder="Add capability"
-              />
-              <Button size="small" onClick={addCapability}>Add</Button>
-            </Box>
-            <Box display="flex" gap={1} flexWrap="wrap">
-              {modelFormData.capabilities.map((cap) => (
-                <Chip
-                  key={cap}
-                  label={cap}
-                  onDelete={() => removeCapability(cap)}
-                  size="small"
+
+          {/* Tabs: only show for new models, not when editing */}
+          {!editingModel && (
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+              <Tabs
+                value={modelDialogTab}
+                onChange={(_, v) => setModelDialogTab(v)}
+              >
+                <Tab
+                  icon={<CloudDownloadIcon />}
+                  iconPosition="start"
+                  label="Select from LiteLLM"
                 />
-              ))}
+                <Tab
+                  icon={<CreateIcon />}
+                  iconPosition="start"
+                  label="Manual"
+                />
+              </Tabs>
             </Box>
-          </Box>
+          )}
+
+          {/* ====== Tab 0: Quick-add from LiteLLM ====== */}
+          {!editingModel && modelDialogTab === 0 && (
+            <Box>
+              {/* Provider Select */}
+              <TextField
+                select
+                margin="dense"
+                label="Provider"
+                fullWidth
+                value={quickAddFormData.provider_id}
+                onChange={(e) => {
+                  setQuickAddFormData(prev => ({ ...prev, provider_id: e.target.value }))
+                  setModelPricingSource(null)
+                }}
+                sx={{ mb: 2 }}
+              >
+                {providers.map((provider) => (
+                  <MenuItem key={provider.id} value={provider.id}>{provider.name}</MenuItem>
+                ))}
+              </TextField>
+
+              {/* LiteLLM Model Search */}
+              <Autocomplete
+                freeSolo
+                options={modelLitellmOptions}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') return option
+                  return option.model_id
+                }}
+                inputValue={modelLitellmInputValue}
+                onInputChange={(_, newInputValue) => {
+                  setModelLitellmInputValue(newInputValue)
+                }}
+                onChange={handleQuickAddLitellmSelect}
+                loading={modelLitellmLoading}
+                filterOptions={(x) => x}
+                renderOption={(props, option) => {
+                  if (typeof option === 'string') return null
+                  return (
+                    <li {...props} key={option.litellm_key}>
+                      <Box sx={{ width: '100%' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                          <Typography variant="body2" fontWeight={600} sx={{ fontFamily: 'monospace' }}>
+                            {option.model_id}
+                          </Typography>
+                          {option.max_input_tokens && (
+                            <Chip
+                              label={`${Math.round(option.max_input_tokens / 1000)}K`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                            />
+                          )}
+                        </Box>
+                        <Box display="flex" gap={2} mt={0.5}>
+                          <Typography variant="caption" color="text.secondary">
+                            In: ${option.input_price}/1M
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Out: ${option.output_price}/1M
+                          </Typography>
+                          {option.litellm_provider && (
+                            <Typography variant="caption" color="primary">
+                              {option.litellm_provider}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </li>
+                  )
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    margin="dense"
+                    label="Search LiteLLM Models"
+                    fullWidth
+                    placeholder={quickAddFormData.provider_id ? "Search from 2500+ models..." : "Select a provider first..."}
+                    helperText={
+                      quickAddFormData.provider_id
+                        ? "Search and select a model to auto-fill name, pricing, and context window"
+                        : "Please select a provider first to see available models"
+                    }
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {modelLitellmLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={{ mb: 2 }}
+                  />
+                )}
+                noOptionsText={
+                  !quickAddFormData.provider_id
+                    ? "Please select a provider first"
+                    : modelLitellmInputValue
+                      ? "No matching models found"
+                      : "Type to search models..."
+                }
+                sx={{ mb: 0 }}
+              />
+
+              {/* LiteLLM pricing indicator */}
+              {modelPricingSource === 'litellm' && (
+                <Alert
+                  severity="success"
+                  icon={<AutoAwesomeIcon fontSize="small" />}
+                  sx={{ mb: 2 }}
+                >
+                  Model info auto-filled from LiteLLM. You can adjust the values below.
+                </Alert>
+              )}
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Auto-filled model fields */}
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Model Information
+              </Typography>
+              <TextField
+                margin="dense"
+                label="Model Name"
+                fullWidth
+                value={quickAddFormData.name}
+                onChange={(e) => setQuickAddFormData(prev => ({ ...prev, name: e.target.value }))}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Family"
+                fullWidth
+                value={quickAddFormData.family}
+                onChange={(e) => setQuickAddFormData(prev => ({ ...prev, family: e.target.value }))}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Description"
+                fullWidth
+                multiline
+                rows={2}
+                value={quickAddFormData.description}
+                onChange={(e) => setQuickAddFormData(prev => ({ ...prev, description: e.target.value }))}
+                sx={{ mb: 2 }}
+              />
+
+              {/* Capabilities */}
+              <Box mb={2}>
+                <Typography variant="subtitle2" gutterBottom>Capabilities</Typography>
+                <Box display="flex" gap={1} mb={1}>
+                  <TextField
+                    size="small"
+                    value={quickAddCapabilityInput}
+                    onChange={(e) => setQuickAddCapabilityInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addQuickAddCapability()
+                      }
+                    }}
+                    placeholder="Add capability"
+                  />
+                  <Button size="small" onClick={addQuickAddCapability}>Add</Button>
+                </Box>
+                <Box display="flex" gap={1} flexWrap="wrap">
+                  {quickAddFormData.capabilities.map((cap) => (
+                    <Chip
+                      key={cap}
+                      label={cap}
+                      onDelete={() => removeQuickAddCapability(cap)}
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Implementation details */}
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Implementation Details
+              </Typography>
+
+              <TextField
+                margin="dense"
+                label="Context Window"
+                fullWidth
+                type="number"
+                value={quickAddFormData.context_window}
+                onChange={(e) => setQuickAddFormData(prev => ({ ...prev, context_window: parseInt(e.target.value) || 0 }))}
+                sx={{ mb: 2 }}
+              />
+
+              <Box display="flex" gap={2}>
+                <TextField
+                  margin="dense"
+                  label="Input Price (per 1M tokens)"
+                  fullWidth
+                  type="number"
+                  value={quickAddFormData.pricing_info.input_price ?? ''}
+                  onChange={(e) => {
+                    setQuickAddFormData(prev => ({
+                      ...prev,
+                      pricing_info: { ...prev.pricing_info, input_price: parseFloat(e.target.value) || undefined }
+                    }))
+                    if (modelPricingSource === 'litellm') setModelPricingSource('manual')
+                  }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  margin="dense"
+                  label="Output Price (per 1M tokens)"
+                  fullWidth
+                  type="number"
+                  value={quickAddFormData.pricing_info.output_price ?? ''}
+                  onChange={(e) => {
+                    setQuickAddFormData(prev => ({
+                      ...prev,
+                      pricing_info: { ...prev.pricing_info, output_price: parseFloat(e.target.value) || undefined }
+                    }))
+                    if (modelPricingSource === 'litellm') setModelPricingSource('manual')
+                  }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                  }}
+                  sx={{ mb: 2 }}
+                />
+              </Box>
+
+              <Box display="flex" gap={2} alignItems="center">
+                <TextField
+                  margin="dense"
+                  label="Sort Order"
+                  type="number"
+                  value={quickAddFormData.sort_order}
+                  onChange={(e) => setQuickAddFormData(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+                  helperText="Lower = higher priority"
+                  sx={{ width: 200 }}
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={quickAddFormData.is_available}
+                      onChange={(e) => setQuickAddFormData(prev => ({ ...prev, is_available: e.target.checked }))}
+                    />
+                  }
+                  label="Available"
+                />
+              </Box>
+            </Box>
+          )}
+
+          {/* ====== Tab 1: Manual (also used for editing) ====== */}
+          {(editingModel || modelDialogTab === 1) && (
+            <Box>
+              <TextField
+                margin="dense"
+                label="Name"
+                fullWidth
+                value={modelFormData.name}
+                onChange={(e) => setModelFormData({ ...modelFormData, name: e.target.value })}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Family"
+                fullWidth
+                value={modelFormData.family}
+                onChange={(e) => setModelFormData({ ...modelFormData, family: e.target.value })}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                margin="dense"
+                label="Description"
+                fullWidth
+                multiline
+                rows={2}
+                value={modelFormData.description}
+                onChange={(e) => setModelFormData({ ...modelFormData, description: e.target.value })}
+                sx={{ mb: 2 }}
+              />
+              <Box mb={2}>
+                <Typography variant="subtitle2" gutterBottom>Capabilities</Typography>
+                <Box display="flex" gap={1} mb={1}>
+                  <TextField
+                    size="small"
+                    value={capabilityInput}
+                    onChange={(e) => setCapabilityInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addCapability()
+                      }
+                    }}
+                    placeholder="Add capability"
+                  />
+                  <Button size="small" onClick={addCapability}>Add</Button>
+                </Box>
+                <Box display="flex" gap={1} flexWrap="wrap">
+                  {modelFormData.capabilities.map((cap) => (
+                    <Chip
+                      key={cap}
+                      label={cap}
+                      onDelete={() => removeCapability(cap)}
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleModelClose}>Cancel</Button>
-          <Button onClick={handleModelSubmit} variant="contained">
-            {editingModel ? 'Update' : 'Create'}
+          <Button
+            onClick={handleModelSubmit}
+            variant="contained"
+            disabled={
+              modelDialogTab === 0 && !editingModel
+                ? !quickAddFormData.name || !quickAddFormData.family || !quickAddFormData.provider_id || !quickAddFormData.provider_model_id
+                : false
+            }
+          >
+            {editingModel ? 'Update' : modelDialogTab === 0 ? 'Create Model & Implementation' : 'Create'}
           </Button>
         </DialogActions>
       </Dialog>

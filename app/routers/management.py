@@ -15,6 +15,7 @@ from app.schemas.management import (
     ApiKeyCreate, ApiKeyUpdate, ApiKeyResponse,
     ModelCreate, ModelUpdate, ModelResponse,
     ModelImplementationCreate, ModelImplementationUpdate, ModelImplementationResponse,
+    ModelQuickAddRequest, ModelQuickAddResponse,
     UsageResponse
 )
 
@@ -218,10 +219,72 @@ def delete_model(
     db_model = db.query(Model).filter(Model.id == model_id).first()
     if not db_model:
         raise HTTPException(status_code=404, detail="Model not found")
-    
+
     db.delete(db_model)
     db.commit()
     return {"message": "Model deleted successfully"}
+
+
+@router.post("/models/quick-add")
+def quick_add_model(
+    request: ModelQuickAddRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Quick-add a model with its first implementation in one step.
+
+    Creates both the Model and a ModelImplementation atomically.
+    Useful when selecting from LiteLLM's model catalog to avoid
+    setting up pricing/metadata manually.
+    """
+    # Verify provider exists
+    provider = db.query(ModelProvider).filter(ModelProvider.id == request.provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    # Check if a model with the same name already exists
+    existing_model = db.query(Model).filter(Model.name == request.name).first()
+
+    try:
+        if existing_model:
+            # Use existing model, just add the implementation
+            db_model = existing_model
+        else:
+            # Create the model
+            db_model = Model(
+                name=request.name,
+                description=request.description,
+                capabilities=request.capabilities,
+                family=request.family,
+            )
+            db.add(db_model)
+            db.flush()  # Get the model ID without committing
+
+        # Create the implementation
+        db_impl = ModelImplementation(
+            provider_id=request.provider_id,
+            model_id=db_model.id,
+            provider_model_id=request.provider_model_id,
+            version=request.version,
+            context_window=request.context_window,
+            pricing_info=request.pricing_info,
+            is_available=request.is_available,
+            sort_order=request.sort_order,
+        )
+        db.add(db_impl)
+        db.commit()
+        db.refresh(db_model)
+        db.refresh(db_impl)
+
+        return {
+            "model": db_model,
+            "implementation": db_impl,
+            "model_existed": existing_model is not None,
+        }
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Failed to create model and implementation")
+
 
 # Model Implementation CRUD endpoints
 @router.get("/model-implementations", response_model=List[ModelImplementationResponse])
