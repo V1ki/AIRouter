@@ -37,6 +37,7 @@ class PriceResponse(BaseModel):
     input_price: float
     output_price: float
     last_updated: Optional[datetime]
+    updated_by: Optional[str]
     provider_name: str
     model_name: str
 
@@ -60,6 +61,7 @@ def get_all_prices(
                 input_price=float(impl.pricing_info.get('input_price', 0)),
                 output_price=float(impl.pricing_info.get('output_price', 0)),
                 last_updated=impl.pricing_info.get('last_updated'),
+                updated_by=impl.pricing_info.get('updated_by'),
                 provider_name=impl.provider.name,
                 model_name=impl.model.name
             ))
@@ -88,6 +90,7 @@ def get_model_price(
         input_price=float(impl.pricing_info.get('input_price', 0)),
         output_price=float(impl.pricing_info.get('output_price', 0)),
         last_updated=impl.pricing_info.get('last_updated'),
+        updated_by=impl.pricing_info.get('updated_by'),
         provider_name=impl.provider.name,
         model_name=impl.model.name
     )

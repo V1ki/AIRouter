@@ -137,7 +137,90 @@ export interface LiteLLMModelOption {
   litellm_provider?: string
 }
 
+export interface ModelPrice {
+  model_id: string
+  provider_model_id: string
+  input_price: number
+  output_price: number
+  last_updated: string | null
+  updated_by: string | null
+  provider_name: string
+  model_name: string
+}
+
+export interface SyncPreviewDetail {
+  model_implementation_id: string
+  provider_model_id: string
+  provider_name: string | null
+  model_name: string | null
+  current_input_price: number
+  current_output_price: number
+  litellm_input_price: number | null
+  litellm_output_price: number | null
+  has_litellm_price: boolean
+  price_changed: boolean
+}
+
+export interface SyncPreviewResult {
+  total_models: number
+  matched_in_litellm: number
+  would_change: number
+  not_found_in_litellm: number
+  details: SyncPreviewDetail[]
+}
+
+export interface SyncResult {
+  updated_count: number
+  skipped_count: number
+  not_found_count: number
+  updated: Array<{
+    provider_model_id: string
+    provider: string | null
+    old_input_price: number
+    old_output_price: number
+    new_input_price: number
+    new_output_price: number
+  }>
+  skipped: Array<{ provider_model_id: string; provider: string | null; reason: string }>
+  not_found: Array<{ provider_model_id: string; provider: string | null }>
+}
+
+export interface PriceComparison {
+  [family: string]: Array<{
+    provider: string
+    model: string
+    provider_model_id: string
+    input_price: number
+    output_price: number
+    context_window: number
+  }>
+}
+
 export const pricingService = {
+  getAll: async (): Promise<ModelPrice[]> => {
+    const { data } = await api.get('/pricing/')
+    return data
+  },
+
+  update: async (modelId: string, prices: { input_price: number; output_price: number }): Promise<void> => {
+    await api.put(`/pricing/model/${modelId}`, { model_id: modelId, ...prices })
+  },
+
+  getComparison: async (): Promise<PriceComparison> => {
+    const { data } = await api.get('/pricing/comparison')
+    return data
+  },
+
+  previewSync: async (): Promise<SyncPreviewResult> => {
+    const { data } = await api.get('/pricing/litellm/preview')
+    return data
+  },
+
+  syncFromLiteLLM: async (params?: { only_missing?: boolean; provider?: string }): Promise<SyncResult> => {
+    const { data } = await api.post('/pricing/litellm/sync', null, { params })
+    return data
+  },
+
   searchLiteLLMModels: async (params: {
     search?: string
     provider_name?: string
